@@ -1,0 +1,198 @@
+# AI_WORKFLOW.md
+
+How this was actually built.
+
+> **Read this first.** This file was drafted by the agent that wrote most of the code, from
+> the real session — the failures below are the ones that actually happened, in the order they
+> happened, and every command output quoted is copied from a real run. But the brief is right
+> that judgement and honesty have to be the candidate's own, so treat this as a faithful log
+> to check and put in your own words, not as a finished statement of your reasoning.
+
+---
+
+## Tools and models
+
+| | |
+|---|---|
+| **Agent** | Claude Code (CLI), model Claude Opus 5 |
+| **Mode** | Single long agentic session, tool-using, running commands and reading their output rather than being told what happened |
+| **Repo config** | `CLAUDE.md` written **before** any application code; `.agent/` capability added at Phase 1 |
+| **Human role** | Decisions, phase boundaries, adversarial review, and the two things I would not delegate: the token choice and the §3.3 boundary |
+
+Everything the agent claimed, it ran. The `109 passed` figures, the `FAIL — 2 violation(s)`
+output, the Auth0 `Service not found` response — all copied from actual terminal output, not
+narrated.
+
+---
+
+## How the work was decomposed
+
+Eight phases, committed separately, in dependency order. The ordering was the main lever: each
+phase gave the next one something to be constrained by.
+
+| Phase | Output | Why here |
+|---|---|---|
+| 0 | Auth0 tenant verification | **Before any code.** The token decision has to come from evidence, not from what an agent assumes |
+| 1 | `CLAUDE.md`, `/.agent/` | Rules before code, so they constrain generation rather than describe it afterwards |
+| 2 | Prisma schema, migration, two-user seed | The data model is where the invariant is rooted |
+| 3 | Global auth guard | Auth before CRUD, so no route ever exists unprotected |
+| 4 | CRUD with ownership | — |
+| 5 | Verification harness | The largest single block of effort, matching its 20-point weight |
+| 6 | Frontend | Last, because it cannot enforce anything |
+| 7–8 | Docs, CI, Docker | — |
+
+**The single highest-leverage choice was writing `CLAUDE.md` before Phase 2.** The rules that
+went in — 404-not-403, `ownerId` at the data-access layer, identity only from the verified
+`sub`, no `any` — showed up in the *first* draft of every service afterwards. I did not have
+to correct the same class of mistake repeatedly, which is the usual failure mode of steering
+an agent by conversation alone.
+
+---
+
+## What AI did well
+
+**1. Genuinely adversarial test generation, once the frame was set.** Given "each test is one
+way the claim could be false" rather than "write tests for auth", the output included cases I
+would have got to eventually but not first: `alg: none`, unknown `kid`, an ID-token-shaped
+token distinguished only by `aud`, and — the best one — *"does not tell the caller WHY a token
+was rejected"*, which asserts that expired, wrong-audience and forged tokens produce byte-identical
+bodies. 109 tests in about 9 seconds.
+
+**2. Mechanical breadth without fatigue.** The `PROTECTED_ROUTES` table drives 30 assertions
+across every verb and route. A human writes six of those and starts trusting the pattern. This
+is the kind of thoroughness worth delegating.
+
+**3. Fast, correct recovery from unfamiliar breaking changes.** Prisma 7 removing `url` from
+the datasource, `react-router-dom` having no v8, MUI v9 dropping system props from `Stack`,
+jose v6 being ESM-only — four ecosystem changes in one session, each diagnosed from the actual
+error and fixed without flailing.
+
+---
+
+## Where AI failed, and how I recovered
+
+**1. `tsx` silently broke NestJS dependency injection — and the type checker said nothing.**
+
+The backend was scaffolded with `tsx`. `npx tsc --noEmit` was completely clean. On boot:
+
+```
+ERROR [ExceptionHandler] TypeError: Cannot read properties of undefined (reading 'getOrThrow')
+    at new TokenVerifierService (src/auth/token-verifier.service.ts:34:26)
+```
+
+`tsx` uses esbuild, which does not implement `emitDecoratorMetadata`. Nest resolves constructor
+dependencies from exactly that metadata, so every injected service became `undefined`. The
+code was right; the *build tool* was wrong, and nothing in the type system can see that.
+
+**Recovery:** build and run through the tsc-based Nest CLI; keep `tsx` only for standalone
+scripts with no DI. **The transferable lesson:** a green typecheck is not a green run, and an
+agent that stops at "it compiles" will hand you a dead app. Booting the server and curling it
+is now a fixed step in the loop, not an afterthought — see "the loop" below.
+
+**2. The privacy gate's first version failed correct code.**
+
+My own tool, agent-written, and its first run produced four confident failures on four correct
+queries — it only understood inline object literals, and the services build
+`const where = { ownerId, ... }` and pass `{ where }` by shorthand.
+
+**Recovery:** added local-binding resolution. **Why I did not just suppress them:** a security
+gate that cries wolf gets switched off, or trains people that `// privacy-ok` is routine. The
+gate's precision *is* its function. This was the moment I stopped treating agent-written
+tooling as automatically trustworthy just because I had specified it carefully.
+
+**3. I nearly rewrote good tests because a mutation "wasn't caught".**
+
+Verifying the on-delete tests had teeth, I flipped `SetNull` → `Cascade` in `schema.prisma`.
+All four tests stayed green. My first instinct was that the tests were weak.
+
+They were fine. `prisma migrate dev` had failed and its output had gone to `/dev/null`, so no
+migration was generated and the edit never reached a database.
+
+**Recovery:** mutated the migration SQL instead — where three tests failed immediately and
+correctly. **What it taught me about this codebase**, which is the part actually worth having:
+the referential action in force lives in the committed migration, not in `schema.prisma`. A
+reviewer approving a schema diff here is not looking at what the database will do. That is now
+documented in `API_DESIGN.md` §5. **What it taught me about method:** when a mutation is not
+caught, first check that the mutation landed.
+
+---
+
+## A prompt that worked, and one that did not
+
+### Worked — framing tests as falsification
+
+> Write automated tests hitting the real Nest app with a test DB. **Each test is one way the
+> claim "every route requires a valid Auth0 access token" could be false.** Cover as
+> separately named tests a reviewer can read: … Do not write happy-path tests; the happy path
+> goes last.
+
+The working part is *"one way the claim could be false"*. Asked to "write tests for
+authentication", an agent produces a valid token, a missing token, and a 200 — and reports
+good coverage. Reframed as falsification, it produced the wrong-audience case, the
+ID-token-shaped case, and the reason-disclosure case unprompted. **The generalisation:** state
+the claim you want falsified, not the feature you want covered.
+
+### Did not work — asking for a verification tool without the failure mode
+
+First attempt:
+
+> Write a script that checks all Prisma queries are scoped by ownerId.
+
+What came back was regex over source text. It matched the literal string `ownerId` anywhere in
+the file, so a query with `ownerId` in a *comment* passed, and it could not tell a `where` from
+a `select`. It reported PASS on code I had deliberately broken — worse than no tool, because it
+would have been quoted as evidence.
+
+What worked was specifying the failure mode and the escape hatch:
+
+> Use the TypeScript compiler AST, not regex. For each call `prisma.<model>.<op>()` where model
+> is Collection or Bookmark: reads/updates/deletes need `ownerId` inside `where`; creates need
+> it inside `data`. **Ban `findUnique` on those models entirely — it cannot express an
+> ownership predicate.** Follow `{ where }` shorthand to its local `const`. Allow
+> `// privacy-ok: <reason>` and print every suppression in the summary. Exit 1 on any
+> violation.
+
+**The generalisation:** for a *verification* tool, the requirement is not what it should
+accept — it is what it must not miss. If I cannot state the false-negative I am afraid of, I
+am not ready to ask for the tool.
+
+---
+
+## The loop I settled into
+
+Per phase: **specify → generate → run it → break it → commit**.
+
+The two middle steps are the ones that earned their place:
+
+- **Run it.** Not typecheck — run. The server boots and gets curled; the tests execute; the
+  frontend is opened in a browser. Failure 1 above is invisible any other way.
+- **Break it.** Every guarantee was verified by removing the thing that provides it and
+  watching the failure. Three mutations on the test suite
+  ([transcript](transcripts/phase-5-mutation-testing.md)); two on the privacy gate. A suite
+  that has never failed is an assertion, not evidence — and the point of this exercise is that
+  assertions score zero.
+
+---
+
+## Cost and token awareness
+
+Roughly a **60/40 split between building and verifying**, and I would defend spending more on
+the second half — §6 of the brief puts 10 points on the app running and 90 on everything else.
+
+Where the budget actually went, and the cheap wins:
+
+- **Cheapest high-value spend: `CLAUDE.md`, written first.** A few hundred tokens that removed
+  entire categories of correction from every later phase. Re-explaining the invariant per
+  session would have cost far more.
+- **Phase 0 before any code.** Four curl commands. They produced the token decision, the
+  trailing-slash issue, the two-keys-so-select-by-`kid` finding, and the port-3000 constraint —
+  all of which would have been expensive to discover by debugging a 401 loop later.
+- **The static gate over re-reading diffs.** It runs in under a second, in CI and in a
+  `PostToolUse` hook. Catching an unscoped query costs ~0 tokens; catching it by asking an
+  agent to re-read the diff costs the whole file, every time.
+- **Deliberate non-spend:** no frontend unit tests, no browser E2E, no load testing. All
+  listed in `API_DESIGN.md` §9 with reasons. Time went to the layer that actually enforces
+  something.
+- **Biggest avoidable waste:** debugging the `tsx` DI failure. A single "boot the server and
+  curl one route" step at the end of Phase 2 would have caught it one phase earlier, before
+  the guard was built on top of it.

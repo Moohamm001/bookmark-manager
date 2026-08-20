@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend — privacy gate, types, tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Install (root)
+        run: npm ci || npm install
+
+      - name: Install (backend)
+        working-directory: backend
+        run: npm ci || npm install
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+        env:
+          DATABASE_URL: file:./ci.db
+
+      # Runs FIRST and takes under a second. A query that is not owner-scoped fails the
+      # build before the test suite has finished booting, and the failure names the exact
+      # file and line. See .agent/README.md.
+      - name: Privacy gate
+        run: npm run verify:privacy
+
+      - name: Typecheck
+        working-directory: backend
+        run: npm run lint:types
+
+      - name: Tests
+        working-directory: backend
+        run: npm test
+        env:
+          DATABASE_URL: file:./ci.db
+
+      - name: Build
+        working-directory: backend
+        run: npm run build
+
+  frontend:
+    name: Frontend — types and build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci || npm install
+
+      - name: Typecheck
+        working-directory: frontend
+        run: npm run lint:types
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+        env:
+          # Public identifiers, not secrets: a PKCE public client has no client secret,
+          # and all of these are visible in the browser's network tab anyway.
+          VITE_AUTH0_DOMAIN: dev-yg.us.auth0.com
+          VITE_AUTH0_CLIENT_ID: H9F6QG5SzTKMv0tbmgxLj9LjG1EKVllA
+          VITE_AUTH0_AUDIENCE: https://bbl-candidate-test-api
+          VITE_AUTH0_REDIRECT_URI: http://localhost:3000/callback
+          VITE_API_BASE_URL: http://localhost:4000
