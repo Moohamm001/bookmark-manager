@@ -71,6 +71,8 @@ error and fixed without flailing.
 
 ## Where AI failed, and how I recovered
 
+Four, in the order they happened. The fourth is the one worth reading.
+
 **1. `tsx` silently broke NestJS dependency injection — and the type checker said nothing.**
 
 The backend was scaffolded with `tsx`. `npx tsc --noEmit` was completely clean. On boot:

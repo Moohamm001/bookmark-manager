@@ -17,7 +17,7 @@ transcripts/ Real session logs, including the messy parts
 |---|---|
 | [`API_DESIGN.md`](API_DESIGN.md) | The contract, the enforcement mechanism, where the agent was wrong, and every claim mapped to its test |
 | [`DECISIONS.md`](DECISIONS.md) | Nine ADRs — the calls the spec left open |
-| [`AI_WORKFLOW.md`](AI_WORKFLOW.md) | How this was actually built, including three failures |
+| [`AI_WORKFLOW.md`](AI_WORKFLOW.md) | How this was actually built, including four real failures |
 | [`CLAUDE.md`](CLAUDE.md) | The agent rules file, written before any application code |
 | [`.agent/README.md`](.agent/README.md) | The reusable capability, when and why it is invoked |
 
@@ -156,6 +156,12 @@ than take on trust.
   worth less than tests on the layer that can. `RequireAuth` is convenience; the backend guard
   is the control. I would rather ship none and say so than ship shallow ones that imply
   coverage I do not have.
+
+  **The honest counterargument:** the one bug that reached a user was a frontend routing bug
+  (the `/callback` failure above), and it is exactly the kind a single render test would have
+  caught — "`/callback` does not alter `window.location.search`". The reasoning above is still
+  right about *priority*; it was wrong to conclude the right number was zero. That test is the
+  first thing I would add.
 - **No browser end-to-end test of the login flow.** It needs a real password in CI and breaks
   whenever Auth0 restyles its login page. The token *validation* path — the part I own — is
   covered exhaustively instead, and PKCE is verifiable by hand with `scripts/verify-token.mjs`.
