@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Server } from 'node:http';
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { Test } from '@nestjs/testing';
@@ -29,7 +30,8 @@ export interface SeededUser {
 
 export interface TestContext {
   app: INestApplication;
-  server: unknown;
+  /** Typed so supertest accepts it and `npm run lint:types` covers the tests too. */
+  server: Server;
   prisma: PrismaService;
   jwks: JwksServerHandle;
   alice: SeededUser;
@@ -72,7 +74,7 @@ export async function createTestContext(): Promise<TestContext> {
 
   return {
     app,
-    server: app.getHttpServer(),
+    server: app.getHttpServer() as Server,
     prisma,
     jwks,
     alice,

@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { TEST_AUDIENCE, TEST_ISSUER, mintAlgNoneToken } from './support/jwks-server.js';
+import { mintAlgNoneToken } from './support/jwks-server.js';
 import { bearer, createTestContext, type TestContext } from './support/test-app.js';
 
 /**
