@@ -1,0 +1,80 @@
+// Private bookmark manager — data model.
+//
+// SQLite for local dev: the reviewer's setup stays one command, and nothing here
+// depends on a Postgres-only feature. Swapping the datasource to postgresql is a
+// one-line change plus a fresh migration; see DECISIONS.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7 removed `url` from the schema: the connection is supplied by a driver
+// adapter at runtime (see src/prisma/prisma.service.ts) and by prisma.config.ts for
+// the migrate CLI. Keeping the URL out of the schema is why the same schema can point
+// at dev.db, a per-worker test database, or Postgres without being edited.
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  // The Auth0 `sub` of the verified access token. This is the ONLY link between a
+  // request and a row; identity is never read from a request body.
+  auth0Sub  String   @unique
+  email     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  collections Collection[]
+  bookmarks   Bookmark[]
+
+  @@index([auth0Sub])
+}
+
+model Collection {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NON-NULL by design. Every collection has exactly one owner, and every query that
+  // touches this table filters on it. Deleting a user removes their collections.
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  bookmarks Bookmark[]
+
+  // Owner-first: every real query is "this owner's collections", so ownerId leads the
+  // index. A bare index on id alone would not serve the scoped lookups at all.
+  @@index([ownerId])
+  @@index([ownerId, createdAt])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  url       String
+  title     String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // NON-NULL, and stored DIRECTLY on the bookmark rather than inferred through the
+  // collection — collectionId is nullable, so an uncategorised bookmark would otherwise
+  // have no owner at all. It also means every bookmark query can be owner-scoped with a
+  // single equality predicate instead of a join.
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Nullable: a bookmark may be uncategorised.
+  //
+  // onDelete: SetNull — deleting a collection does NOT delete its bookmarks; they become
+  // uncategorised. A collection is an organisational container, not the owner of the
+  // content. Explicit, not defaulted. See DECISIONS.md (ADR-003).
+  collectionId String?
+  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([ownerId, collectionId])
+  @@index([ownerId, createdAt])
+}

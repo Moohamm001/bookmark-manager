@@ -25,3 +25,6 @@ backend/prisma/*.db*
 # and this repo is submitted publicly. The playbook is private working material.
 Full-Stack-Developer-Test.pdf
 AGENT_PLAYBOOK.md
+
+# Prisma 7 generates the client into src/ — build artefact, not source.
+backend/src/generated/
