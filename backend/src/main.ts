@@ -12,7 +12,7 @@ async function bootstrap(): Promise<void> {
   // Explicit allow-list, not `origin: true`. Credentials are not used (the token travels
   // in the Authorization header, not a cookie), so there is no CSRF surface to reflect.
   app.enableCors({
-    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map((s) => s.trim()),
+    origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000').split(',').map((s) => s.trim()),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type'],
     credentials: false,
