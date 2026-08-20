@@ -1,0 +1,17 @@
+{
+  "name": "bookmark-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private bookmark manager - BBL full-stack take-home",
+  "scripts": {
+    "verify:privacy": "tsx .agent/scripts/verify-privacy.ts",
+    "backend:dev": "npm --prefix backend run dev",
+    "backend:test": "npm --prefix backend test",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "check": "npm run verify:privacy && npm --prefix backend run lint:types && npm --prefix backend test"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
