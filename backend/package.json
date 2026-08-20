@@ -12,9 +12,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "test": "jest --runInBand",
-    "test:watch": "jest --watch --runInBand",
-    "test:cov": "jest --coverage --runInBand",
+    "test": "jest --config test/jest-e2e.json --runInBand",
+    "test:watch": "jest --config test/jest-e2e.json --runInBand --watch",
+    "test:cov": "jest --config test/jest-e2e.json --runInBand --coverage",
     "verify:privacy": "tsx ../.agent/scripts/verify-privacy.ts",
     "lint:types": "tsc -p tsconfig.json --noEmit"
   },
