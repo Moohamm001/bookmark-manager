@@ -1,0 +1,27 @@
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.DS_Store
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# sqlite
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+backend/prisma/*.db*
+
+# editors
+.vscode/
+.idea/
+
+# Do NOT publish: the brief is marked CONFIDENTIAL / "not to be copied or distributed",
+# and this repo is submitted publicly. The playbook is private working material.
+Full-Stack-Developer-Test.pdf
+AGENT_PLAYBOOK.md
