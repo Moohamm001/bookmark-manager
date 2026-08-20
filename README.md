@@ -170,6 +170,11 @@ than take on trust.
 
 ### Known rough edges
 
+- The `/callback` route was initially wired to redirect immediately, which stripped Auth0's
+  `?code=` before the SDK could read it and made sign-in silently do nothing. Fixed
+  ([AI_WORKFLOW.md](AI_WORKFLOW.md), failure 4) — worth reading because it sat exactly one
+  step past where automated verification could reach.
+
 - Search is `LIKE`-based. Correct at this scale, will not scale.
 - No optimistic concurrency — last write wins on `PUT`.
 - The frontend refetches lists after each mutation rather than updating cache.

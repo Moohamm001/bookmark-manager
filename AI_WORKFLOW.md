@@ -115,6 +115,56 @@ reviewer approving a schema diff here is not looking at what the database will d
 documented in `API_DESIGN.md` §5. **What it taught me about method:** when a mutation is not
 caught, first check that the mutation landed.
 
+**4. The login did nothing — a bug that only existed past the point the agent could reach.**
+
+This is the most instructive failure in the build, because of *where* it hid.
+
+The agent could drive the app as far as Auth0's login page and confirm the tenant accepted
+the client id, callback URL and audience. It could not type the test password, so the
+callback round-trip was never executed. Everything up to that line was verified; the first
+thing past it was broken.
+
+I signed in, pressed **Accept**, and landed back at the login screen. No error, no console
+noise — sign-in simply did nothing.
+
+The cause was four characters of routing:
+
+```tsx
+<Route path="/callback" element={<Navigate to="/collections" replace />} />
+```
+
+Auth0 returns to `/callback?code=…&state=…`. React runs **child effects before parent
+effects**, so `Navigate`'s effect rewrote the URL before `Auth0Provider`'s effect called
+`hasAuthParams()` — which reads `window.location.search` at that moment. The SDK saw a clean
+URL, never exchanged the authorization code, and left the user unauthenticated; `RequireAuth`
+then bounced them back to Auth0. An infinite, silent loop.
+
+The agent's own comment above that line asserted the opposite — *"The SDK consumes the ?code=
+and then onRedirectCallback navigates onward"* — which is a good illustration of what
+plausible-but-wrong looks like. It reads like someone who understood the flow. Nothing in
+typecheck, lint, the 109 tests or the privacy gate could see it, because none of them
+execute a browser redirect.
+
+**Recovery:** `/callback` now renders a `CallbackPage` that deliberately does nothing to the
+URL, and lets `onRedirectCallback` navigate once the code has actually been exchanged.
+
+**Verified without needing the password**, which is the part worth stealing: navigating to
+`/callback?code=fake&state=fake` and checking the URL survives and the SDK *attempts* the
+exchange —
+
+```
+url  : http://localhost:3000/callback?code=fake-code-for-testing&state=fake-state
+body : "Sign-in failed / Invalid state / TRY AGAIN"
+```
+
+`Invalid state` is the correct rejection of a forged state. Before the fix the params were
+stripped and the SDK did nothing at all, so this single check distinguishes the two.
+
+**The transferable lesson.** Know where your agent's verification actually stops, and treat
+the first step past that line as unverified by default. The boundary here was "cannot type a
+password" — a capability limit, not a knowledge limit — and the bug was sitting immediately
+behind it. I should have gone looking there first rather than being told about it.
+
 ---
 
 ## A prompt that worked, and one that did not

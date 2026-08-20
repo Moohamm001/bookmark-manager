@@ -6,6 +6,7 @@ import { ApiProvider, AuthProvider } from './auth/AuthProvider';
 import { RequireAuth } from './auth/RequireAuth';
 import { Layout } from './components/Layout';
 import { AllPage } from './pages/AllPage';
+import { CallbackPage } from './pages/CallbackPage';
 import { BookmarksPage } from './pages/BookmarksPage';
 import { CollectionDetailPage, CollectionsPage } from './pages/CollectionsPage';
 
@@ -28,9 +29,10 @@ function App() {
         <ApiProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/collections" replace />} />
-            {/* Auth0 redirects here after login. The SDK consumes the ?code= and then
-                onRedirectCallback navigates onward, so this only ever renders briefly. */}
-            <Route path="/callback" element={<Navigate to="/collections" replace />} />
+            {/* Auth0 lands here with ?code=&state=. This route must NOT touch the URL —
+                see the comment in CallbackPage. onRedirectCallback navigates onward once
+                the code has actually been exchanged. */}
+            <Route path="/callback" element={<CallbackPage />} />
             <Route
               element={
                 <RequireAuth>
