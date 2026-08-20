@@ -4,9 +4,9 @@
   "private": true,
   "description": "Private bookmark manager API - NestJS + Prisma + Auth0",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "nest build",
     "start": "node dist/main.js",
-    "dev": "tsx watch src/main.ts",
+    "dev": "nest start --watch",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
@@ -35,6 +35,7 @@
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@nestjs/cli": "^11.0.24",
     "@nestjs/testing": "^11.2.1",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.14",
