@@ -37,13 +37,19 @@ export interface Me {
   email: string;
 }
 
-/** Mirrors the backend's single error shape (AllExceptionsFilter). */
+/**
+ * Mirrors the backend's single error shape (AllExceptionsFilter).
+ *
+ * `status: 0` means the request never reached the server at all — a network-level failure
+ * rather than an HTTP response.
+ */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    options?: { cause?: unknown },
   ) {
-    super(message);
+    super(message, options);
     this.name = 'ApiError';
   }
 }
@@ -68,14 +74,31 @@ export function createApiClient(getToken: TokenGetter, onUnauthorized: () => voi
       throw new ApiError(401, 'Session expired — signing in again');
     }
 
-    const res = await fetch(`${authConfig.apiBaseUrl}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...init.headers,
-      },
-    });
+    const url = `${authConfig.apiBaseUrl}${path}`;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        ...init,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...init.headers,
+        },
+      });
+    } catch (cause) {
+      // A rejected fetch() is a NETWORK-level failure — the request never got a response.
+      // The browser's message for all of them is the famously unhelpful "Failed to fetch",
+      // which says nothing about which URL or why, so replace it with something a person
+      // can act on. In practice it is almost always the first cause listed.
+      throw new ApiError(
+        0,
+        `Could not reach the API at ${url}. Is the backend running? ` +
+          `Start it with: cd backend && npm run dev  ` +
+          `(other causes: wrong VITE_API_BASE_URL in frontend/.env, or CORS_ORIGIN in ` +
+          `backend/.env not matching ${window.location.origin}).`,
+        { cause },
+      );
+    }
 
     if (res.status === 401) {
       // The API rejected the token. Re-authenticate rather than showing a dead UI.

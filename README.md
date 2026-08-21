@@ -61,7 +61,7 @@ docker compose up --build
 npm install && npm run check
 ```
 
-Privacy gate → typecheck → 109 tests.
+Privacy gate → typecheck → 110 tests.
 
 ---
 
@@ -72,8 +72,8 @@ cd backend && npm test
 ```
 
 ```
-Test Suites: 5 passed, 5 total
-Tests:       109 passed, 109 total
+Test Suites: 6 passed, 6 total
+Tests:       110 passed, 110 total
 Time:        ~9 s
 ```
 
@@ -83,6 +83,7 @@ Time:        ~9 s
 | `isolation.e2e-spec.ts` | Alice vs Bob on every verb, all 404; lists, totals, search and `/all` never leak; cross-tenant collection writes; `ownerId` in body; a foreign id is indistinguishable from a nonexistent one; nothing returns 403 |
 | `crud.e2e-spec.ts` | PUT-vs-PATCH semantics, the nullable relation, filters, error shape, `javascript:` URL rejection |
 | `on-delete.e2e-spec.ts` | `SetNull` asserted on actual rows, at the database level |
+| `first-login-race.e2e-spec.ts` | Concurrent first requests from a brand-new user all succeed and create exactly one `User` row — StrictMode double-fires effects, so this is the real shape of a first page load |
 | `live-jwks.e2e-spec.ts` | Boots against the **real** Auth0 tenant and rejects a self-minted token. Self-skips (loudly) when offline |
 
 ### The privacy gate
