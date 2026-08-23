@@ -42,7 +42,10 @@ API on **http://localhost:4000**. Seeds two users with non-overlapping data.
 cd frontend && npm install && cp .env.example .env && npm run dev
 ```
 
-App on **http://localhost:3000**. Sign in as `candidate@test.com` / `@password1234`.
+App on **http://localhost:3000**. Sign in with the test user from the brief
+(`candidate@test.com`) — the password is deliberately not reproduced here, because this
+repository is public and that credential opens a live Auth0 tenant. Any Google account
+works too; the app creates your row on first login.
 
 > **The frontend must be on port 3000.** The Auth0 tenant registers
 > `http://localhost:3000/callback` as the only permitted callback URL and requires an exact
