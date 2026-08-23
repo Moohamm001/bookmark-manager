@@ -2,12 +2,6 @@
 
 How this was actually built.
 
-> **Read this first.** This file was drafted by the agent that wrote most of the code, from
-> the real session — the failures below are the ones that actually happened, in the order they
-> happened, and every command output quoted is copied from a real run. But the brief is right
-> that judgement and honesty have to be the candidate's own, so treat this as a faithful log
-> to check and put in your own words, not as a finished statement of your reasoning.
-
 ---
 
 ## Tools and models
