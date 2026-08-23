@@ -1,14 +1,7 @@
 /**
- * Auth0 configuration for the SPA.
- *
- * Why the official SDK rather than a hand-rolled PKCE flow:
- *
- * I did hand-roll it — `scripts/verify-token.mjs` in the repo root implements Authorization
- * Code + PKCE from scratch with `node:crypto`, and that is how I verified what the tenant
- * actually issues (see transcripts/phase-0-auth0/FINDINGS.md). Understanding the flow is
- * necessary. Shipping my own implementation of it is not: state validation, verifier
- * storage, token refresh, and the callback race conditions are all places where a subtle
- * bug is silent and severe. The SDK is audited; my 80 lines would not be.
+ * None of these are secrets: a PKCE public client has no client secret, and all of them are
+ * visible in the browser's network tab. Why the app uses the Auth0 SDK rather than the
+ * hand-rolled PKCE in scripts/verify-token.mjs: DECISIONS.md ADR-008.
  */
 export const authConfig = {
   domain: import.meta.env.VITE_AUTH0_DOMAIN as string,
@@ -22,9 +15,8 @@ const missing = Object.entries(authConfig)
   .filter(([, v]) => !v)
   .map(([k]) => k);
 
+// Fail at boot with a readable message rather than a confusing 401 loop later.
 if (missing.length > 0) {
-  // Fail at boot with a readable message. The alternative is a login redirect that
-  // half-works and a 401 loop that looks like a backend bug.
   throw new Error(
     `Missing frontend env vars: ${missing.join(', ')}. Copy frontend/.env.example to frontend/.env`,
   );

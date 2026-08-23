@@ -6,11 +6,8 @@ import { TokenVerifierService } from './token-verifier.service.js';
 import type { AuthenticatedRequest } from './auth.types.js';
 
 /**
- * Registered as an APP_GUARD in AppModule, so it protects EVERY route by default.
- *
- * Per-controller guards were rejected deliberately: they make "unprotected" the default
- * for any new controller, and the mistake is silent. Here, forgetting to think about auth
- * yields a 401, which is a loud, safe failure.
+ * Registered as an APP_GUARD, so every route is protected by default and forgetting to
+ * think about auth on a new controller yields a 401 rather than an open door.
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -29,32 +26,18 @@ export class AuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = extractBearerToken(request.headers.authorization);
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
-    }
+    if (!token) throw new UnauthorizedException('Missing bearer token');
 
-    const payload = await this.tokenVerifier.verify(token);
-
-    // Identity is resolved here, once, from the verified `sub`. Everything downstream
-    // reads request.user; nothing downstream reads the token again or trusts the body.
-    request.user = await this.users.resolveFromToken(payload);
+    // Identity is resolved once, from the verified sub. Nothing downstream re-reads the token.
+    request.user = await this.users.resolveFromToken(await this.tokenVerifier.verify(token));
     return true;
   }
 }
 
-/**
- * Strict parse of `Authorization: Bearer <token>`.
- *
- * Case-insensitive on the scheme (RFC 7235 says the scheme is case-insensitive) but
- * otherwise unforgiving: exactly two parts, non-empty token. Lenient parsing here is a
- * classic source of "empty token is treated as valid".
- */
+/** Strict `Bearer <token>`. Lenient parsing here is how an empty token becomes valid. */
 export function extractBearerToken(header: string | undefined): string | null {
-  if (!header) return null;
-  const parts = header.split(' ');
+  const parts = header?.split(' ') ?? [];
   if (parts.length !== 2) return null;
   const [scheme, token] = parts;
-  if (scheme.toLowerCase() !== 'bearer') return null;
-  if (!token || token.trim().length === 0) return null;
-  return token;
+  return scheme.toLowerCase() === 'bearer' && token.trim() ? token : null;
 }

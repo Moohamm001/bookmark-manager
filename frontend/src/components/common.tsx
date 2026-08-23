@@ -11,10 +11,9 @@ export function Loading() {
 
 export function ErrorNote({ error }: { error: unknown }) {
   if (!error) return null;
-  const message = error instanceof Error ? error.message : String(error);
   return (
     <Alert severity="error" sx={{ mb: 2 }}>
-      {message}
+      {error instanceof Error ? error.message : String(error)}
     </Alert>
   );
 }
@@ -33,5 +32,24 @@ export function EmptyState({ title, hint }: { title: string; hint?: ReactNode })
         )}
       </Stack>
     </Paper>
+  );
+}
+
+/**
+ * rel=noreferrer so we do not leak our URLs to the target site. The href cannot be a
+ * javascript: payload because the API rejects any non-http(s) URL at the write boundary.
+ */
+export function BookmarkLink({ url, caption }: { url: string; caption?: boolean }) {
+  return (
+    <Typography
+      component="a"
+      variant={caption ? 'caption' : 'body2'}
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      sx={{ color: 'primary.main', wordBreak: 'break-all' }}
+    >
+      {url}
+    </Typography>
   );
 }

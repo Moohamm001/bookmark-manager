@@ -17,88 +17,62 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { useApi } from '../auth/AuthProvider';
-import { EmptyState, ErrorNote, Loading } from '../components/common';
-import type { Bookmark, Collection } from '../api/client';
+import { useAsync } from '../lib/useAsync';
+import { BookmarkLink, EmptyState, ErrorNote, Loading } from '../components/common';
+import type { Bookmark } from '../api/client';
 
 const UNCATEGORISED = '__uncategorised__';
+const EMPTY_DRAFT = { url: '', title: '', notes: '', collectionId: '' };
 
 export function BookmarksPage() {
   const api = useApi();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const filter = searchParams.get('collectionId') ?? '';
-  const q = searchParams.get('q') ?? '';
+  const [params, setParams] = useSearchParams();
+  const filter = params.get('collectionId') ?? '';
+  const q = params.get('q') ?? '';
 
-  const [bookmarks, setBookmarks] = useState<Bookmark[] | null>(null);
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [error, setError] = useState<unknown>(null);
-  const [selected, setSelected] = useState<Bookmark | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({ url: '', title: '', notes: '', collectionId: '' });
-
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      const [b, c] = await Promise.all([
-        api.listBookmarks({
+  const { data, error, setError, reload } = useAsync(
+    async () => ({
+      bookmarks: (
+        await api.listBookmarks({
           ...(filter === UNCATEGORISED
             ? { uncategorised: true }
             : filter
               ? { collectionId: filter }
               : {}),
           ...(q ? { q } : {}),
-        }),
-        api.listCollections(),
-      ]);
-      setBookmarks(b.data);
-      setCollections(c.data);
+        })
+      ).data,
+      collections: (await api.listCollections()).data,
+    }),
+    [api, filter, q],
+  );
+
+  const [selected, setSelected] = useState<Bookmark | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
+
+  const run = async (action: () => Promise<unknown>) => {
+    try {
+      await action();
+      await reload();
     } catch (e) {
       setError(e);
-      setBookmarks([]);
     }
-  }, [api, filter, q]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  };
 
   const setParam = (key: string, value: string) => {
-    const next = new URLSearchParams(searchParams);
+    const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
-    setSearchParams(next, { replace: true });
+    setParams(next, { replace: true });
   };
 
-  const create = async () => {
-    try {
-      await api.createBookmark({
-        url: draft.url.trim(),
-        title: draft.title.trim(),
-        notes: draft.notes.trim() || null,
-        collectionId: draft.collectionId || null,
-      });
-      setDraft({ url: '', title: '', notes: '', collectionId: '' });
-      setCreating(false);
-      await load();
-    } catch (e) {
-      setError(e);
-    }
-  };
-
-  const remove = async (id: string) => {
-    try {
-      await api.deleteBookmark(id);
-      setSelected(null);
-      await load();
-    } catch (e) {
-      setError(e);
-    }
-  };
-
+  const collections = data?.collections ?? [];
   const collectionName = (id: string | null) =>
-    id ? (collections.find((c) => c.id === id)?.name ?? 'Unknown') : null;
+    id ? (collections.find((c) => c.id === id)?.name ?? 'Unknown') : 'Uncategorised';
 
   return (
     <Box>
@@ -139,37 +113,28 @@ export function BookmarksPage() {
 
       <ErrorNote error={error} />
 
-      {bookmarks === null ? (
+      {!data ? (
         <Loading />
-      ) : bookmarks.length === 0 ? (
+      ) : data.bookmarks.length === 0 ? (
         <EmptyState
           title="No bookmarks match"
           hint={filter || q ? 'Try clearing the filters.' : 'Save your first link.'}
         />
       ) : (
         <Stack spacing={1.5}>
-          {bookmarks.map((b) => (
+          {data.bookmarks.map((b) => (
             <Card key={b.id} variant="outlined">
               <CardContent>
-                <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}
+                >
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="subtitle1">{b.title}</Typography>
-                    <Typography
-                      variant="body2"
-                      component="a"
-                      href={b.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ color: 'primary.main', wordBreak: 'break-all' }}
-                    >
-                      {b.url}
-                    </Typography>
+                    <BookmarkLink url={b.url} />
                     <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                      <Chip
-                        size="small"
-                        variant="outlined"
-                        label={collectionName(b.collectionId) ?? 'Uncategorised'}
-                      />
+                      <Chip size="small" variant="outlined" label={collectionName(b.collectionId)} />
                       <Button size="small" onClick={() => setSelected(b)}>
                         Details
                       </Button>
@@ -178,7 +143,7 @@ export function BookmarksPage() {
                   <IconButton
                     size="small"
                     aria-label={`Delete ${b.title}`}
-                    onClick={() => void remove(b.id)}
+                    onClick={() => void run(() => api.deleteBookmark(b.id))}
                   >
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
@@ -189,33 +154,35 @@ export function BookmarksPage() {
         </Stack>
       )}
 
-      {/* Details */}
       <Dialog open={selected !== null} onClose={() => setSelected(null)} fullWidth maxWidth="sm">
         <DialogTitle>{selected?.title}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
             <Field label="URL" value={selected?.url ?? ''} />
-            <Field label="Collection" value={collectionName(selected?.collectionId ?? null) ?? 'Uncategorised'} />
+            <Field label="Collection" value={collectionName(selected?.collectionId ?? null)} />
             <Field label="Notes" value={selected?.notes || '—'} />
             <Field
               label="Created"
               value={selected ? new Date(selected.createdAt).toLocaleString() : ''}
             />
-            <Field
-              label="Updated"
-              value={selected ? new Date(selected.updatedAt).toLocaleString() : ''}
-            />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button color="error" onClick={() => selected && void remove(selected.id)}>
+          <Button
+            color="error"
+            onClick={() =>
+              void run(async () => {
+                if (selected) await api.deleteBookmark(selected.id);
+                setSelected(null);
+              })
+            }
+          >
             Delete
           </Button>
           <Button onClick={() => setSelected(null)}>Close</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Create */}
       <Dialog open={creating} onClose={() => setCreating(false)} fullWidth maxWidth="sm">
         <DialogTitle>New bookmark</DialogTitle>
         <DialogContent>
@@ -260,7 +227,18 @@ export function BookmarksPage() {
           <Button
             variant="contained"
             disabled={!draft.url.trim() || !draft.title.trim()}
-            onClick={() => void create()}
+            onClick={() =>
+              void run(async () => {
+                await api.createBookmark({
+                  url: draft.url.trim(),
+                  title: draft.title.trim(),
+                  notes: draft.notes.trim() || null,
+                  collectionId: draft.collectionId || null,
+                });
+                setDraft(EMPTY_DRAFT);
+                setCreating(false);
+              })
+            }
           >
             Create
           </Button>

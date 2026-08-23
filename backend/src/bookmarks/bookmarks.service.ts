@@ -19,33 +19,22 @@ export class BookmarksService {
   ) {}
 
   /**
-   * The cross-tenant hole this app is most likely to have.
-   *
-   * Without this check, A can POST a bookmark with B's collectionId. The bookmark is
-   * owned by A (so the owner scoping looks fine, and every ownership test still passes),
-   * but it is now *inside B's collection* — it shows up in B's `GET
-   * /collections/:id/bookmarks`, and A has effectively written into B's account.
-   *
-   * Two properties make it safe:
-   *  - it runs on create AND on both update paths (PUT and PATCH), because "move a
-   *    bookmark into a collection" is the same operation as "create it there";
-   *  - it 404s, so A cannot use it to probe whether a collection id exists.
+   * The cross-tenant hole this app is most likely to have: without this, A can file a
+   * bookmark into B's collection. The bookmark is owned by A, so every ownership check
+   * still passes — but it appears in B's collection. Runs on create, PUT and PATCH,
+   * because "move into a collection" is the same operation as "create there".
    */
   private async assertCollectionUsable(ownerId: string, collectionId: string | null | undefined) {
-    if (collectionId === null || collectionId === undefined) return;
-    await this.collections.assertOwned(ownerId, collectionId);
+    if (collectionId != null) await this.collections.assertOwned(ownerId, collectionId);
   }
 
   async list(ownerId: string, query: ListBookmarksQueryDto): Promise<Paginated<Bookmark>> {
     const limit = query.limit ?? 25;
     const offset = query.offset ?? 0;
 
-    // Filtering by a collection you do not own must be indistinguishable from filtering by
-    // one that does not exist. Returning an empty list instead would be a subtle oracle:
-    // "empty" for a real-but-foreign id vs 404 for a made-up one still leaks existence.
-    if (query.collectionId) {
-      await this.collections.assertOwned(ownerId, query.collectionId);
-    }
+    // 404 rather than an empty list: "real but not yours" must be indistinguishable from
+    // "does not exist", or the filter becomes an existence oracle.
+    if (query.collectionId) await this.collections.assertOwned(ownerId, query.collectionId);
 
     const where: Prisma.BookmarkWhereInput = {
       ownerId,
@@ -75,13 +64,11 @@ export class BookmarksService {
     return { data, total, limit, offset };
   }
 
-  /** Bookmarks inside one collection. 404s if the collection is not the caller's. */
   async listByCollection(
     ownerId: string,
     collectionId: string,
     query: ListBookmarksQueryDto,
   ): Promise<Paginated<Bookmark>> {
-    await this.collections.assertOwned(ownerId, collectionId);
     return this.list(ownerId, { ...query, collectionId, uncategorised: false });
   }
 
@@ -104,27 +91,23 @@ export class BookmarksService {
     });
   }
 
-  /** PUT — full replace. Absent optional fields are reset to null, not left alone. */
+  /** PUT — full replace, so omitted optional fields are reset to null. */
   async replace(ownerId: string, id: string, dto: ReplaceBookmarkDto): Promise<Bookmark> {
     await this.assertCollectionUsable(ownerId, dto.collectionId);
-    try {
-      return await this.prisma.bookmark.update({
-        where: { id, ownerId },
-        data: {
-          url: dto.url,
-          title: dto.title,
-          notes: dto.notes ?? null,
-          collectionId: dto.collectionId ?? null,
-        },
-      });
-    } catch (err) {
-      rethrowAsNotFound(err, 'Bookmark');
-    }
+    return this.write(ownerId, id, {
+      url: dto.url,
+      title: dto.title,
+      notes: dto.notes ?? null,
+      collection: dto.collectionId
+        ? { connect: { id: dto.collectionId } }
+        : { disconnect: true },
+    });
   }
 
-  /** PATCH — only the provided fields. `notes: null` and `collectionId: null` are meaningful. */
+  /** PATCH — only provided fields; `notes: null` and `collectionId: null` are meaningful. */
   async patch(ownerId: string, id: string, dto: PatchBookmarkDto): Promise<Bookmark> {
     await this.assertCollectionUsable(ownerId, dto.collectionId);
+
     const data: Prisma.BookmarkUpdateInput = {};
     if (dto.url !== undefined) data.url = dto.url;
     if (dto.title !== undefined) data.title = dto.title;
@@ -133,12 +116,7 @@ export class BookmarksService {
       data.collection =
         dto.collectionId === null ? { disconnect: true } : { connect: { id: dto.collectionId } };
     }
-
-    try {
-      return await this.prisma.bookmark.update({ where: { id, ownerId }, data });
-    } catch (err) {
-      rethrowAsNotFound(err, 'Bookmark');
-    }
+    return this.write(ownerId, id, data);
   }
 
   async remove(ownerId: string, id: string): Promise<void> {
@@ -149,20 +127,13 @@ export class BookmarksService {
     }
   }
 
-  /**
-   * Bonus /all view: collections with their bookmarks nested, plus the uncategorised pile.
-   * The nested read is owner-scoped at BOTH levels — the outer `where` alone would be
-   * enough today, but a nested include that trusts its parent is exactly the kind of query
-   * that stops being safe when someone later adds sharing.
-   */
+  /** Backs GET /all. The nested read carries its own ownerId rather than trusting the parent. */
   async listAllGrouped(ownerId: string) {
     const [collections, uncategorised] = await this.prisma.$transaction([
       this.prisma.collection.findMany({
         where: { ownerId },
         orderBy: { createdAt: 'desc' },
-        include: {
-          bookmarks: { where: { ownerId }, orderBy: { createdAt: 'desc' } },
-        },
+        include: { bookmarks: { where: { ownerId }, orderBy: { createdAt: 'desc' } } },
       }),
       this.prisma.bookmark.findMany({
         where: { ownerId, collectionId: null },
@@ -171,5 +142,17 @@ export class BookmarksService {
     ]);
 
     return { collections, uncategorised };
+  }
+
+  private async write(
+    ownerId: string,
+    id: string,
+    data: Prisma.BookmarkUpdateInput,
+  ): Promise<Bookmark> {
+    try {
+      return await this.prisma.bookmark.update({ where: { id, ownerId }, data });
+    } catch (err) {
+      rethrowAsNotFound(err, 'Bookmark');
+    }
   }
 }

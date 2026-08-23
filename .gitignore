@@ -28,3 +28,6 @@ AGENT_PLAYBOOK.md
 
 # Prisma 7 generates the client into src/ — build artefact, not source.
 backend/src/generated/
+
+# TypeScript incremental build artefact
+*.tsbuildinfo

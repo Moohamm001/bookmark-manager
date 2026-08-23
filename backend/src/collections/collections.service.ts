@@ -11,19 +11,11 @@ import type {
 } from './dto/collection.dto.js';
 
 /**
- * Every method takes `ownerId` as its FIRST parameter, and every Prisma call below puts
- * it in the `where`. This is the whole privacy mechanism, and the shape is deliberate:
+ * Every method takes `ownerId` first and every query carries it. This is the whole privacy
+ * mechanism (ADR-009), and the shape matters: update/delete pass `{ id, ownerId }` in the
+ * same statement as the write, so there is no fetch-then-check window and no `if` to drop.
  *
- * - It is impossible to call any of these methods without deciding whose data you mean.
- * - It is statically checkable — `npm run verify:privacy` parses this file and fails the
- *   build if any Prisma call on Collection/Bookmark lacks an ownerId predicate.
- * - `update`/`delete` pass `{ id, ownerId }` together, so the scoping happens in the same
- *   atomic statement as the write. There is no fetch-then-check window, and no `if` a
- *   future edit can drop.
- *
- * Note what is NOT here: no `findUnique`. `findUnique({ where: { id } })` cannot express
- * "and it must be mine", so it is banned outright by the verifier — `findFirst` with a
- * compound where is the only sanctioned read.
+ * No `findUnique` — it cannot express "and it is mine". `npm run verify:privacy` enforces both.
  */
 @Injectable()
 export class CollectionsService {
@@ -32,11 +24,7 @@ export class CollectionsService {
   async list(ownerId: string, query: ListCollectionsQueryDto): Promise<Paginated<Collection>> {
     const limit = query.limit ?? 25;
     const offset = query.offset ?? 0;
-    // SQLite's LIKE is ASCII-case-insensitive, which is what `contains` compiles to here.
-    const where = {
-      ownerId,
-      ...(query.q ? { name: { contains: query.q } } : {}),
-    };
+    const where = { ownerId, ...(query.q ? { name: { contains: query.q } } : {}) };
 
     const [data, total] = await this.prisma.$transaction([
       this.prisma.collection.findMany({
@@ -57,7 +45,7 @@ export class CollectionsService {
     return collection;
   }
 
-  /** Ownership assertion used by BookmarksService before it files a bookmark anywhere. */
+  /** Used by BookmarksService before filing a bookmark into a collection. */
   async assertOwned(ownerId: string, id: string): Promise<void> {
     const found = await this.prisma.collection.findFirst({
       where: { id, ownerId },
@@ -67,36 +55,26 @@ export class CollectionsService {
   }
 
   async create(ownerId: string, dto: CreateCollectionDto): Promise<Collection> {
-    // ownerId comes from the argument (i.e. the verified token), never from `dto`.
     return this.prisma.collection.create({ data: { name: dto.name, ownerId } });
   }
 
   async replace(ownerId: string, id: string, dto: ReplaceCollectionDto): Promise<Collection> {
-    try {
-      return await this.prisma.collection.update({
-        where: { id, ownerId },
-        data: { name: dto.name },
-      });
-    } catch (err) {
-      rethrowAsNotFound(err, 'Collection');
-    }
+    return this.update(ownerId, id, { name: dto.name });
   }
 
   async patch(ownerId: string, id: string, dto: PatchCollectionDto): Promise<Collection> {
+    return this.update(ownerId, id, dto.name !== undefined ? { name: dto.name } : {});
+  }
+
+  private async update(ownerId: string, id: string, data: { name?: string }): Promise<Collection> {
     try {
-      return await this.prisma.collection.update({
-        where: { id, ownerId },
-        data: { ...(dto.name !== undefined ? { name: dto.name } : {}) },
-      });
+      return await this.prisma.collection.update({ where: { id, ownerId }, data });
     } catch (err) {
       rethrowAsNotFound(err, 'Collection');
     }
   }
 
-  /**
-   * Delete. The bookmarks inside are NOT deleted — `onDelete: SetNull` in the schema makes
-   * them uncategorised. Enforced by the database, not by code here. See DECISIONS.md ADR-003.
-   */
+  /** Bookmarks inside are not deleted; `onDelete: SetNull` uncategorises them. ADR-003. */
   async remove(ownerId: string, id: string): Promise<void> {
     try {
       await this.prisma.collection.delete({ where: { id, ownerId } });

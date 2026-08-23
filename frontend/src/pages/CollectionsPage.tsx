@@ -16,56 +16,30 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useApi } from '../auth/AuthProvider';
-import { EmptyState, ErrorNote, Loading } from '../components/common';
-import type { Bookmark, Collection } from '../api/client';
+import { useAsync } from '../lib/useAsync';
+import { BookmarkLink, EmptyState, ErrorNote, Loading } from '../components/common';
+import type { Collection } from '../api/client';
 
 export function CollectionsPage() {
   const api = useApi();
-  const [collections, setCollections] = useState<Collection[] | null>(null);
-  const [error, setError] = useState<unknown>(null);
-  const [creating, setCreating] = useState(false);
+  const { data, error, setError, reload } = useAsync(() => api.listCollections(), [api]);
   const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Collection | null>(null);
 
-  const load = useCallback(async () => {
+  const run = async (action: () => Promise<unknown>) => {
     try {
-      setError(null);
-      const res = await api.listCollections();
-      setCollections(res.data);
-    } catch (e) {
-      setError(e);
-    }
-  }, [api]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const create = async () => {
-    try {
-      await api.createCollection(name.trim());
-      setName('');
-      setCreating(false);
-      await load();
+      await action();
+      await reload();
     } catch (e) {
       setError(e);
     }
   };
 
-  const confirmDelete = async () => {
-    if (!pendingDelete) return;
-    try {
-      await api.deleteCollection(pendingDelete.id);
-      setPendingDelete(null);
-      await load();
-    } catch (e) {
-      setError(e);
-      setPendingDelete(null);
-    }
-  };
+  const collections = data?.data ?? null;
 
   return (
     <Box>
@@ -94,7 +68,10 @@ export function CollectionsPage() {
             <Card key={c.id} variant="outlined">
               <CardActionArea component={Link} to={`/collections/${c.id}`}>
                 <CardContent>
-                  <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Stack
+                    direction="row"
+                    sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}
+                  >
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="h6" noWrap>
                         {c.name}
@@ -107,6 +84,7 @@ export function CollectionsPage() {
                       size="small"
                       aria-label={`Delete ${c.name}`}
                       onClick={(e) => {
+                        // Inside a CardActionArea Link: stop both the navigation and the bubble.
                         e.preventDefault();
                         e.stopPropagation();
                         setPendingDelete(c);
@@ -132,14 +110,21 @@ export function CollectionsPage() {
             label="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && name.trim()) void create();
-            }}
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCreating(false)}>Cancel</Button>
-          <Button variant="contained" disabled={!name.trim()} onClick={() => void create()}>
+          <Button
+            variant="contained"
+            disabled={!name.trim()}
+            onClick={() =>
+              void run(async () => {
+                await api.createCollection(name.trim());
+                setName('');
+                setCreating(false);
+              })
+            }
+          >
             Create
           </Button>
         </DialogActions>
@@ -149,13 +134,22 @@ export function CollectionsPage() {
         <DialogTitle>Delete “{pendingDelete?.name}”?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            The bookmarks inside will <strong>not</strong> be deleted — they become
-            uncategorised and stay in your bookmarks list.
+            The bookmarks inside will <strong>not</strong> be deleted — they become uncategorised
+            and stay in your bookmarks list.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPendingDelete(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={() => void confirmDelete()}>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() =>
+              void run(async () => {
+                if (pendingDelete) await api.deleteCollection(pendingDelete.id);
+                setPendingDelete(null);
+              })
+            }
+          >
             Delete
           </Button>
         </DialogActions>
@@ -166,25 +160,15 @@ export function CollectionsPage() {
 
 /** View one collection, with the bookmarks it holds. */
 export function CollectionDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { id = '' } = useParams<{ id: string }>();
   const api = useApi();
-  const [collection, setCollection] = useState<Collection | null>(null);
-  const [bookmarks, setBookmarks] = useState<Bookmark[] | null>(null);
-  const [error, setError] = useState<unknown>(null);
-
-  useEffect(() => {
-    if (!id) return;
-    void (async () => {
-      try {
-        setError(null);
-        const [c, b] = await Promise.all([api.getCollection(id), api.collectionBookmarks(id)]);
-        setCollection(c);
-        setBookmarks(b.data);
-      } catch (e) {
-        setError(e);
-      }
-    })();
-  }, [api, id]);
+  const { data, error } = useAsync(
+    async () => ({
+      collection: await api.getCollection(id),
+      bookmarks: (await api.collectionBookmarks(id)).data,
+    }),
+    [api, id],
+  );
 
   return (
     <Box>
@@ -194,40 +178,28 @@ export function CollectionDetailPage() {
 
       <ErrorNote error={error} />
 
-      {!collection || bookmarks === null ? (
+      {!data ? (
         error ? null : (
           <Loading />
         )
       ) : (
         <>
           <Typography variant="h4" sx={{ mb: 1 }}>
-            {collection.name}
+            {data.collection.name}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            {bookmarks.length} bookmark{bookmarks.length === 1 ? '' : 's'}
+            {data.bookmarks.length} bookmark{data.bookmarks.length === 1 ? '' : 's'}
           </Typography>
 
-          {bookmarks.length === 0 ? (
+          {data.bookmarks.length === 0 ? (
             <EmptyState title="Nothing in this collection yet" />
           ) : (
             <Stack spacing={1.5}>
-              {bookmarks.map((b) => (
+              {data.bookmarks.map((b) => (
                 <Card key={b.id} variant="outlined">
                   <CardContent>
                     <Typography variant="subtitle1">{b.title}</Typography>
-                    {/* rel=noreferrer: do not leak our URLs to the target site. The backend
-                        already restricts stored URLs to http(s), so this href cannot be a
-                        javascript: payload. */}
-                    <Typography
-                      variant="body2"
-                      component="a"
-                      href={b.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ color: 'primary.main', wordBreak: 'break-all' }}
-                    >
-                      {b.url}
-                    </Typography>
+                    <BookmarkLink url={b.url} />
                     {b.notes && (
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                         {b.notes}
