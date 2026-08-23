@@ -13,7 +13,7 @@ How this was actually built.
 | **Repo config** | `CLAUDE.md` written **before** any application code; `.agent/` capability added at Phase 1 |
 | **Human role** | Set the goal, chose between options the agent put in front of me, ran the app, and reported what broke |
 
-Everything the agent claimed, it ran. The `110 passed` figures, the `FAIL — 2 violation(s)`
+Everything the agent claimed, it ran. The `112 passed` figures, the `FAIL — 2 violation(s)`
 output, the Auth0 `Service not found` response — all copied from actual terminal output, not
 narrated.
 
@@ -78,7 +78,7 @@ way the claim could be false" rather than "write tests for auth", the output inc
 would have got to eventually but not first: `alg: none`, unknown `kid`, an ID-token-shaped
 token distinguished only by `aud`, and — the best one — *"does not tell the caller WHY a token
 was rejected"*, which asserts that expired, wrong-audience and forged tokens produce byte-identical
-bodies. 110 tests in about 9 seconds.
+bodies. 112 tests in about 9 seconds.
 
 **2. Mechanical breadth without fatigue.** The `PROTECTED_ROUTES` table drives 30 assertions
 across every verb and route. A human writes six of those and starts trusting the pattern. This

@@ -410,7 +410,7 @@ If a claim is not in this table, it is not a claim I am making.
 | PATCH is partial | `PATCH leaves omitted fields untouched` |
 | Consistent error shape | `returns a consistent error shape on every failure` |
 
-`npm test` in `/backend` — 110 tests, about 9 seconds.
+`npm test` in `/backend` — 112 tests, about 9 seconds.
 
 ---
 

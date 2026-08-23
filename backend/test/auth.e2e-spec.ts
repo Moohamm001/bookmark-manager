@@ -1,5 +1,5 @@
 import request from 'supertest';
-import { mintAlgNoneToken } from './support/jwks-server.js';
+import { TEST_AUDIENCE, mintAlgNoneToken } from './support/jwks-server.js';
 import { bearer, createTestContext, type TestContext } from './support/test-app.js';
 
 /**
@@ -75,6 +75,25 @@ describe('Authentication', () => {
     const token = await ctx.mint(ctx.jwks.keys, {
       sub: ctx.alice.auth0Sub,
       audience: 'H9F6QG5SzTKMv0tbmgxLj9LjG1EKVllA',
+    });
+    await request(ctx.server).get('/me').set(bearer(token)).expect(401);
+  });
+
+  it('accepts a token whose aud is an ARRAY that includes our API', async () => {
+    // Real Auth0 tokens carry aud as an array — verified by hand:
+    //   ["https://bbl-candidate-test-api", "https://dev-yg.us.auth0.com/userinfo"]
+    // A guard written as `payload.aud === AUDIENCE` would reject every genuine token.
+    const token = await ctx.mint(ctx.jwks.keys, {
+      sub: ctx.alice.auth0Sub,
+      audience: [TEST_AUDIENCE, 'https://test-tenant.example.com/userinfo'],
+    });
+    await request(ctx.server).get('/me').set(bearer(token)).expect(200);
+  });
+
+  it('rejects an aud ARRAY that does not include our API', async () => {
+    const token = await ctx.mint(ctx.jwks.keys, {
+      sub: ctx.alice.auth0Sub,
+      audience: ['https://other-api.example.com', 'https://test-tenant.example.com/userinfo'],
     });
     await request(ctx.server).get('/me').set(bearer(token)).expect(401);
   });

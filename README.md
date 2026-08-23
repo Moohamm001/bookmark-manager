@@ -78,7 +78,7 @@ docker compose up --build
 npm install && npm run check
 ```
 
-Privacy gate → typecheck → 110 tests.
+Privacy gate → typecheck → 112 tests.
 
 ---
 
@@ -90,7 +90,7 @@ cd backend && npm test
 
 ```
 Test Suites: 6 passed, 6 total
-Tests:       110 passed, 110 total
+Tests:       112 passed, 112 total
 Time:        ~9 s
 ```
 

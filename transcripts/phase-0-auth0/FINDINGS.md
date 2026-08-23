@@ -81,9 +81,16 @@ page rather than redirecting. Callback allow-listing is enforced tenant-side.
 So the guard validates: RS256 signature via JWKS (`kid`-selected), `iss === "https://dev-yg.us.auth0.com/"`,
 `aud` includes `https://bbl-candidate-test-api`, and `exp`. Identity is the verified `sub`, never a body field.
 
-## 5. Still to do by hand (needs the test-user password — see `scripts/verify-token.mjs`)
+## 5. Confirmed with a real token
 
-Steps 1–4 above need no credentials, which is why they are done here. The remaining proof — logging in
-as `candidate@test.com`, decoding the resulting access token, and confirming an *audience-less* request
-returns an opaque token — requires typing the password, so it is left as a script for the human to run.
-Its output belongs in `transcripts/phase-0-auth0/token-inspection.md`.
+Steps 1–4 above need no credentials, which is why they are recorded here. The remaining
+proof — logging in for real and decoding the resulting tokens — needs the account password,
+so it was run by hand with `scripts/verify-token.mjs`.
+
+Result in [`token-inspection.md`](token-inspection.md). It confirms the access token is an
+RS256 JWT signed by `kid=tOu0FHcN3C2etrel4Qhaz`, one of the two keys captured in
+[`jwks.json`](jwks.json) before any code was written — and that the id_token from the same
+login carries the client id as its `aud`.
+
+It also turned up something the credential-free probes could not: **`aud` is an array**, so
+the rule is "must include our API", not equality. See that file.
