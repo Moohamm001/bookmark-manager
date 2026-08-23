@@ -49,6 +49,20 @@ App on **http://localhost:3000**. Sign in as `candidate@test.com` / `@password12
 > match — I confirmed in Phase 0 that any other `redirect_uri` is rejected outright. `vite.config.ts`
 > pins the port with `strictPort` so a collision fails loudly instead of silently breaking login.
 
+> **Expected on every reload: an "Authorize App" consent screen and a fresh sign-in.**
+> This is not broken. Two causes, only one of which is a decision of mine:
+>
+> - The access token is held **in memory only** and never in `localStorage`, so a reload has
+>   no token ([ADR-002](DECISIONS.md)). Silent re-auth would normally cover this, but it runs
+>   in a hidden iframe that Chrome blocks along with third-party cookies — so a full redirect
+>   is the only route left.
+> - Auth0 **will not skip the consent prompt for a `localhost` callback URL**; it cannot
+>   attest to the app's identity there. On a real domain the grant is remembered and you see
+>   it once. We do not administer this tenant, so this one is not ours to change.
+>
+> If you would rather not re-authenticate while reviewing, keep the tab open and navigate
+> in-app — the token survives client-side routing, just not a hard reload.
+
 ### Docker
 
 ```bash

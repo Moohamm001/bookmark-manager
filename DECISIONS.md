@@ -69,6 +69,28 @@ reload. It needs `offline_access` added to the scope — a change to the brief's
 configuration — and it introduces a longer-lived credential. Worth revisiting for a real
 product; not worth quietly widening the scope for a take-home.
 
+**What this actually looks like when you run it** (observed, not predicted — worth knowing
+before you judge the app broken):
+
+> Every full page reload sends you back through Auth0, **including the "Authorize App"
+> consent screen**, and you sign in again.
+
+Two things compound to produce that, and only one of them is my decision:
+
+1. **Mine.** Memory-only storage means a reload has no token. The SDK's fallback is silent
+   authentication in a hidden iframe — which Chrome now blocks along with third-party
+   cookies — so the fallback fails and a full redirect is the only route left.
+2. **Not mine.** Auth0 will not skip the consent prompt for an application whose callback
+   URL is `localhost`; it cannot attest to the app's identity there. On a real domain with a
+   first-party app the grant is remembered and the prompt appears once. We do not administer
+   this tenant, so this is not ours to change.
+
+I am keeping the decision. Re-authenticating on reload is an irritation; a bearer token
+sitting somewhere any script on the origin can read it is a vulnerability. For an app whose
+entire premise is privacy, that trade is not close. But the cost is real, a reviewer will
+meet it immediately, and pretending otherwise would be the kind of unbacked claim §2.3 of
+the brief warns about.
+
 **Steering.** Agents default to `localStorage` here, because most tutorials do. I specified
 memory storage in `CLAUDE.md` before the frontend existed.
 
