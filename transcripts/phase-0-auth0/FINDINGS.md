@@ -81,7 +81,7 @@ page rather than redirecting. Callback allow-listing is enforced tenant-side.
 So the guard validates: RS256 signature via JWKS (`kid`-selected), `iss === "https://dev-yg.us.auth0.com/"`,
 `aud` includes `https://bbl-candidate-test-api`, and `exp`. Identity is the verified `sub`, never a body field.
 
-## 5. Still to do by hand (needs the test-user password — see `scripts/verify-token.sh`)
+## 5. Still to do by hand (needs the test-user password — see `scripts/verify-token.mjs`)
 
 Steps 1–4 above need no credentials, which is why they are done here. The remaining proof — logging in
 as `candidate@test.com`, decoding the resulting access token, and confirming an *audience-less* request
