@@ -35,10 +35,7 @@ export function EmptyState({ title, hint }: { title: string; hint?: ReactNode })
   );
 }
 
-/**
- * rel=noreferrer so we do not leak our URLs to the target site. The href cannot be a
- * javascript: payload because the API rejects any non-http(s) URL at the write boundary.
- */
+/** The API rejects non-http(s) URLs at write time, so this href cannot be javascript:. */
 export function BookmarkLink({ url, caption }: { url: string; caption?: boolean }) {
   return (
     <Typography

@@ -16,12 +16,7 @@ const theme = createTheme({
   typography: { fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif' },
 });
 
-/**
- * BrowserRouter wraps AuthProvider because AuthProvider's onRedirectCallback calls
- * useNavigate — the router has to exist first. Getting this backwards produces a
- * "useNavigate outside a Router" crash that only fires on the callback round-trip, i.e.
- * only after a successful login.
- */
+/** BrowserRouter must wrap AuthProvider: onRedirectCallback uses useNavigate. */
 function App() {
   return (
     <BrowserRouter>
@@ -29,9 +24,6 @@ function App() {
         <ApiProvider>
           <Routes>
             <Route path="/" element={<Navigate to="/collections" replace />} />
-            {/* Auth0 lands here with ?code=&state=. This route must NOT touch the URL —
-                see the comment in CallbackPage. onRedirectCallback navigates onward once
-                the code has actually been exchanged. */}
             <Route path="/callback" element={<CallbackPage />} />
             <Route
               element={

@@ -1,11 +1,6 @@
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { ListQueryDto } from '../../common/dto/list-query.dto.js';
 
-/**
- * POST and PUT share this: both require the FULL resource. PATCH has its own DTO with
- * every field optional. They are deliberately not the same class — reusing one DTO with
- * `PartialType` everywhere is how PUT quietly starts accepting partial bodies.
- */
 export class CreateCollectionDto {
   @IsString()
   @IsNotEmpty()
@@ -13,6 +8,7 @@ export class CreateCollectionDto {
   name!: string;
 }
 
+/** PUT requires the full body; PATCH does not. Separate classes on purpose. */
 export class ReplaceCollectionDto extends CreateCollectionDto {}
 
 export class PatchCollectionDto {
@@ -22,6 +18,4 @@ export class PatchCollectionDto {
   name?: string;
 }
 
-export class ListCollectionsQueryDto extends ListQueryDto {
-  /** `q` matches the collection name. */
-}
+export class ListCollectionsQueryDto extends ListQueryDto {}

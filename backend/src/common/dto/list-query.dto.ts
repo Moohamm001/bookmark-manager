@@ -1,23 +1,24 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, MaxLength, Max, Min } from 'class-validator';
 
-/** Shared list parameters. Documented in API_DESIGN.md. */
+const toInt = () => Transform(({ value }) => Number.parseInt(String(value), 10));
+
+/** Shared list parameters. Documented in API_DESIGN.md §3. */
 export class ListQueryDto {
-  /** Free-text search. Scope depends on the resource; see the subclasses. */
   @IsOptional()
   @IsString()
   @MaxLength(200)
   q?: string;
 
   @IsOptional()
-  @Transform(({ value }) => Number.parseInt(String(value), 10))
+  @toInt()
   @IsInt()
   @Min(1)
   @Max(100)
   limit?: number = 25;
 
   @IsOptional()
-  @Transform(({ value }) => Number.parseInt(String(value), 10))
+  @toInt()
   @IsInt()
   @Min(0)
   offset?: number = 0;

@@ -5,10 +5,7 @@ import { IS_PUBLIC_KEY } from './public.decorator.js';
 import { TokenVerifierService } from './token-verifier.service.js';
 import type { AuthenticatedRequest } from './auth.types.js';
 
-/**
- * Registered as an APP_GUARD, so every route is protected by default and forgetting to
- * think about auth on a new controller yields a 401 rather than an open door.
- */
+/** APP_GUARD: protected is the default, so forgetting auth on a new route yields 401. */
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
@@ -28,13 +25,12 @@ export class AuthGuard implements CanActivate {
     const token = extractBearerToken(request.headers.authorization);
     if (!token) throw new UnauthorizedException('Missing bearer token');
 
-    // Identity is resolved once, from the verified sub. Nothing downstream re-reads the token.
     request.user = await this.users.resolveFromToken(await this.tokenVerifier.verify(token));
     return true;
   }
 }
 
-/** Strict `Bearer <token>`. Lenient parsing here is how an empty token becomes valid. */
+/** Strict: lenient parsing is how an empty token becomes valid. */
 export function extractBearerToken(header: string | undefined): string | null {
   const parts = header?.split(' ') ?? [];
   if (parts.length !== 2) return null;

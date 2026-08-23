@@ -31,18 +31,7 @@ export interface AllView {
   uncategorised: Bookmark[];
 }
 
-export interface Me {
-  id: string;
-  auth0Sub: string;
-  email: string;
-}
-
-/**
- * Mirrors the backend's single error shape (AllExceptionsFilter).
- *
- * `status: 0` means the request never reached the server at all — a network-level failure
- * rather than an HTTP response.
- */
+/** Mirrors the backend error shape. `status: 0` = never reached the server. */
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -56,20 +45,13 @@ export class ApiError extends Error {
 
 type TokenGetter = () => Promise<string>;
 
-/**
- * The only place a request to our API is constructed.
- *
- * The access token is fetched per request from the Auth0 SDK rather than captured once:
- * the SDK owns expiry and renewal, and a copy held in a module variable is a copy that
- * goes stale. Nothing here reads or writes localStorage — see the note in AuthProvider.
- */
+/** Token is fetched per request: the SDK owns expiry, and a cached copy goes stale. */
 export function createApiClient(getToken: TokenGetter, onUnauthorized: () => void) {
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     let token: string;
     try {
       token = await getToken();
     } catch {
-      // The SDK could not produce a token (session gone, silent auth blocked).
       onUnauthorized();
       throw new ApiError(401, 'Session expired — signing in again');
     }
@@ -86,10 +68,7 @@ export function createApiClient(getToken: TokenGetter, onUnauthorized: () => voi
         },
       });
     } catch (cause) {
-      // A rejected fetch() is a NETWORK-level failure — the request never got a response.
-      // The browser's message for all of them is the famously unhelpful "Failed to fetch",
-      // which says nothing about which URL or why, so replace it with something a person
-      // can act on. In practice it is almost always the first cause listed.
+      // "Failed to fetch" names neither the URL nor the reason; say something actionable.
       throw new ApiError(
         0,
         `Could not reach the API at ${url}. Is the backend running? ` +
@@ -101,7 +80,6 @@ export function createApiClient(getToken: TokenGetter, onUnauthorized: () => voi
     }
 
     if (res.status === 401) {
-      // The API rejected the token. Re-authenticate rather than showing a dead UI.
       onUnauthorized();
       throw new ApiError(401, 'Not authenticated');
     }
@@ -130,15 +108,11 @@ export function createApiClient(getToken: TokenGetter, onUnauthorized: () => voi
   };
 
   return {
-    me: () => request<Me>('/me'),
-
     listCollections: (params: { q?: string; limit?: number } = {}) =>
       request<Paginated<Collection>>(`/collections${qs({ limit: 100, ...params })}`),
     getCollection: (id: string) => request<Collection>(`/collections/${id}`),
     createCollection: (name: string) =>
       request<Collection>('/collections', { method: 'POST', body: JSON.stringify({ name }) }),
-    renameCollection: (id: string, name: string) =>
-      request<Collection>(`/collections/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
     deleteCollection: (id: string) => request<void>(`/collections/${id}`, { method: 'DELETE' }),
     collectionBookmarks: (id: string) =>
       request<Paginated<Bookmark>>(`/collections/${id}/bookmarks${qs({ limit: 100 })}`),
@@ -146,15 +120,12 @@ export function createApiClient(getToken: TokenGetter, onUnauthorized: () => voi
     listBookmarks: (
       params: { collectionId?: string; uncategorised?: boolean; q?: string; limit?: number } = {},
     ) => request<Paginated<Bookmark>>(`/bookmarks${qs({ limit: 100, ...params })}`),
-    getBookmark: (id: string) => request<Bookmark>(`/bookmarks/${id}`),
     createBookmark: (input: {
       url: string;
       title: string;
       notes?: string | null;
       collectionId?: string | null;
     }) => request<Bookmark>('/bookmarks', { method: 'POST', body: JSON.stringify(input) }),
-    updateBookmark: (id: string, input: Partial<Omit<Bookmark, 'id' | 'ownerId'>>) =>
-      request<Bookmark>(`/bookmarks/${id}`, { method: 'PATCH', body: JSON.stringify(input) }),
     deleteBookmark: (id: string) => request<void>(`/bookmarks/${id}`, { method: 'DELETE' }),
 
     all: () => request<AllView>('/all'),

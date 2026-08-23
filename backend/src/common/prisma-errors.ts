@@ -2,11 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 
 const RECORD_NOT_FOUND = 'P2025';
 
-/**
- * Always 404, never 403 — a 403 would confirm the row exists. Queries are already
- * owner-scoped, so "no such row" and "someone else's row" are the same failure here.
- * See DECISIONS.md ADR-005.
- */
+/** Always 404, never 403: a 403 confirms the row exists. ADR-005. */
 export function notFound(resource: 'Collection' | 'Bookmark'): never {
   throw new NotFoundException(`${resource} not found`);
 }

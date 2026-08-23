@@ -23,12 +23,7 @@ import {
 } from './dto/collection.dto.js';
 import type { AuthenticatedUser } from '../auth/auth.types.js';
 
-/**
- * Note what every handler has in common: `user.id` is passed to the service and the
- * service does the scoping. No handler fetches a row and then decides. There is no
- * ownership `if` statement anywhere in this file — by design, because that is the kind of
- * check that gets forgotten on the seventh endpoint.
- */
+/** No handler contains an ownership `if` — the service does the scoping. */
 @Controller('collections')
 export class CollectionsController {
   constructor(

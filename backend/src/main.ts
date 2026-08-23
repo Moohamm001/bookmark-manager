@@ -9,8 +9,7 @@ async function bootstrap(): Promise<void> {
 
   configureApp(app);
 
-  // Explicit allow-list, not `origin: true`. Credentials are not used (the token travels
-  // in the Authorization header, not a cookie), so there is no CSRF surface to reflect.
+  // Explicit allow-list, not `origin: true`. The token is a header, not a cookie.
   app.enableCors({
     origin: (process.env.CORS_ORIGIN ?? 'http://localhost:3000').split(',').map((s) => s.trim()),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

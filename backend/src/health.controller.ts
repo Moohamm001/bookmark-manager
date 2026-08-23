@@ -3,11 +3,7 @@ import { Public } from './auth/public.decorator.js';
 
 @Controller('health')
 export class HealthController {
-  /**
-   * The ONLY public route in the app. It returns a constant — no counts, no version, no
-   * database state — because an unauthenticated endpoint that reports anything about the
-   * data is a free oracle.
-   */
+  /** The only public route. Returns a constant — an unauthenticated oracle reports nothing. */
   @Public()
   @Get()
   health(): { status: 'ok' } {

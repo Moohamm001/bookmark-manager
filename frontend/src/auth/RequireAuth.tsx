@@ -3,11 +3,7 @@ import { Box, CircularProgress, Stack, Typography } from '@mui/material';
 import { useEffect, type ReactNode } from 'react';
 import { useLocation } from 'react-router';
 
-/**
- * Convenience, not security — every route it "protects" is one curl away from being called
- * directly. The real gate is the backend's global APP_GUARD. This just means a signed-out
- * user sees a login redirect instead of a page of failed requests.
- */
+/** Convenience, not security — the real gate is the backend's APP_GUARD. */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading, error, loginWithRedirect } = useAuth0();
   const location = useLocation();

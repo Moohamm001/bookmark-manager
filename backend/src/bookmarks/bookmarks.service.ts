@@ -18,12 +18,8 @@ export class BookmarksService {
     private readonly collections: CollectionsService,
   ) {}
 
-  /**
-   * The cross-tenant hole this app is most likely to have: without this, A can file a
-   * bookmark into B's collection. The bookmark is owned by A, so every ownership check
-   * still passes — but it appears in B's collection. Runs on create, PUT and PATCH,
-   * because "move into a collection" is the same operation as "create there".
-   */
+  // The cross-tenant hole: without this A files a bookmark into B's collection — owned by A,
+  // so every ownership check passes, but it shows up in B's. Needed on create, PUT and PATCH.
   private async assertCollectionUsable(ownerId: string, collectionId: string | null | undefined) {
     if (collectionId != null) await this.collections.assertOwned(ownerId, collectionId);
   }
@@ -32,8 +28,7 @@ export class BookmarksService {
     const limit = query.limit ?? 25;
     const offset = query.offset ?? 0;
 
-    // 404 rather than an empty list: "real but not yours" must be indistinguishable from
-    // "does not exist", or the filter becomes an existence oracle.
+    // 404, not an empty list, or the filter becomes an existence oracle.
     if (query.collectionId) await this.collections.assertOwned(ownerId, query.collectionId);
 
     const where: Prisma.BookmarkWhereInput = {
@@ -127,7 +122,7 @@ export class BookmarksService {
     }
   }
 
-  /** Backs GET /all. The nested read carries its own ownerId rather than trusting the parent. */
+  /** The nested read carries its own ownerId rather than trusting the parent. */
   async listAllGrouped(ownerId: string) {
     const [collections, uncategorised] = await this.prisma.$transaction([
       this.prisma.collection.findMany({

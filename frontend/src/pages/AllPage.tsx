@@ -7,10 +7,7 @@ import { useAsync } from '../lib/useAsync';
 import { BookmarkLink, EmptyState, ErrorNote, Loading } from '../components/common';
 import type { Bookmark } from '../api/client';
 
-/**
- * Bonus page: collections with their bookmarks nested. One request to GET /all rather than
- * N+1 from the client — the nesting is the server's job because only the server can scope it.
- */
+/** One request to GET /all — the nesting is the server's job because only it can scope. */
 export function AllPage() {
   const api = useApi();
   const { data: view, error } = useAsync(() => api.all(), [api]);

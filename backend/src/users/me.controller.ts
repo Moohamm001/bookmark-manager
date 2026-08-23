@@ -4,11 +4,7 @@ import type { AuthenticatedUser } from '../auth/auth.types.js';
 
 @Controller('me')
 export class MeController {
-  /**
-   * Returns the signed-in person. There is no `:id` variant and there never will be —
-   * "get user by id" is an enumeration endpoint in an app whose whole premise is that
-   * users cannot learn of each other.
-   */
+  /** No `/users/:id` variant: that would be an enumeration endpoint. */
   @Get()
   me(@CurrentUser() user: AuthenticatedUser): AuthenticatedUser {
     return user;

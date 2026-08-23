@@ -1,11 +1,7 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { Box, Button, CircularProgress, Container, Stack, Typography } from '@mui/material';
 
-/**
- * Where Auth0 lands with ?code=&state=. This must NOT touch the URL — an earlier version
- * redirected on render, which stripped the code before the SDK could read it and made
- * sign-in silently do nothing. onRedirectCallback navigates once the exchange completes.
- */
+// Must NOT touch the URL: redirecting on render strips ?code= before the SDK reads it.
 export function CallbackPage() {
   const { error, loginWithRedirect } = useAuth0();
 
@@ -20,9 +16,7 @@ export function CallbackPage() {
     );
   }
 
-  // The PKCE transaction is single-use, so a replayed /callback URL — a reload, a
-  // back-button, a hot reload — gives "Invalid state". Recovery is a fresh login, not a
-  // link to a protected route (which would leave the SDK's error set and dead-end twice).
+  // The PKCE transaction is single-use, so a replayed /callback gives "Invalid state".
   const invalidState = /invalid state/i.test(error.message);
 
   return (

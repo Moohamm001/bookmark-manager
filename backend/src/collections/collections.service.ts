@@ -10,13 +10,9 @@ import type {
   ReplaceCollectionDto,
 } from './dto/collection.dto.js';
 
-/**
- * Every method takes `ownerId` first and every query carries it. This is the whole privacy
- * mechanism (ADR-009), and the shape matters: update/delete pass `{ id, ownerId }` in the
- * same statement as the write, so there is no fetch-then-check window and no `if` to drop.
- *
- * No `findUnique` — it cannot express "and it is mine". `npm run verify:privacy` enforces both.
- */
+// ownerId is in every query and update/delete carry it in the same statement as the write,
+// so there is no fetch-then-check window. No findUnique — it cannot express "and it is mine".
+// Enforced by `npm run verify:privacy`. ADR-009.
 @Injectable()
 export class CollectionsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -45,7 +41,6 @@ export class CollectionsService {
     return collection;
   }
 
-  /** Used by BookmarksService before filing a bookmark into a collection. */
   async assertOwned(ownerId: string, id: string): Promise<void> {
     const found = await this.prisma.collection.findFirst({
       where: { id, ownerId },

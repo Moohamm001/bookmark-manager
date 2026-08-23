@@ -6,16 +6,8 @@ export interface VerifiedAccessToken extends JWTPayload {
   sub: string;
 }
 
-/**
- * Validates Auth0 access tokens: RS256 signature via JWKS, plus iss, aud and exp.
- *
- * Two of those are load-bearing in ways that are easy to miss:
- * - `algorithms` is pinned, or a token could nominate its own (alg=none, HS256 confusion).
- * - `aud` must be checked, or every token this tenant ever issued opens this API.
- *
- * The tenant publishes two signing keys, so jose selects by `kid` and refetches on rotation.
- * Reasoning and evidence: transcripts/phase-0-auth0/FINDINGS.md.
- */
+// `algorithms` pinned (else alg=none / HS256 confusion) and `aud` checked (else every token
+// this tenant issued opens this API). Evidence: transcripts/phase-0-auth0/FINDINGS.md.
 @Injectable()
 export class TokenVerifierService {
   private readonly logger = new Logger(TokenVerifierService.name);
@@ -49,8 +41,7 @@ export class TokenVerifierService {
       return payload as VerifiedAccessToken;
     } catch (err) {
       if (err instanceof UnauthorizedException) throw err;
-      // Log the real reason, return a generic one: "expired" vs "wrong audience" is free
-      // reconnaissance for a caller.
+      // Generic message out: "expired" vs "wrong audience" is free reconnaissance.
       this.logger.debug(`Token rejected: ${err instanceof Error ? err.message : String(err)}`);
       throw new UnauthorizedException('Invalid or expired access token');
     }

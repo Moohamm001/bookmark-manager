@@ -4,15 +4,8 @@ import { useNavigate } from 'react-router';
 import { authConfig } from './auth-config';
 import { createApiClient, type ApiClient } from '../api/client';
 
-/**
- * Token storage is in memory (`cacheLocation="memory"`), stated explicitly rather than
- * relied on as a default: localStorage is readable by any script on the origin, so one XSS
- * anywhere becomes a stolen bearer token. The cost — re-authenticating on every hard
- * reload — is real and accepted. See DECISIONS.md ADR-002.
- *
- * `audience` is not optional: without it Auth0 returns an opaque token the API cannot
- * validate, and every call 401s (ADR-001).
- */
+// Memory-only tokens: localStorage is script-readable, so one XSS steals the bearer. Cost is
+// re-auth on hard reload (ADR-002). `audience` is required or Auth0 returns an opaque token.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 

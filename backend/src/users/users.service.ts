@@ -7,13 +7,7 @@ import type { VerifiedAccessToken } from '../auth/token-verifier.service.js';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Maps a verified token to a User row, creating one on first login. `auth0Sub` comes from
-   * the signature-verified `sub`, so a caller cannot choose their own identity.
-   *
-   * Email is best-effort — an audience-scoped access token is not guaranteed to carry it —
-   * and is display metadata only, never an authorisation input.
-   */
+  /** Create-on-first-login. `sub` is signature-verified; email is display only. */
   async resolveFromToken(payload: VerifiedAccessToken): Promise<AuthenticatedUser> {
     const auth0Sub = payload.sub;
     const email =

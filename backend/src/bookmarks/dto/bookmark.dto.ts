@@ -1,5 +1,5 @@
-import { Transform } from 'class-transformer';
 import type { IsURLOptions } from 'validator';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsNotEmpty,
@@ -11,17 +11,14 @@ import {
 } from 'class-validator';
 import { ListQueryDto } from '../../common/dto/list-query.dto.js';
 
-/**
- * Protocol allow-list is a real control, not decoration: these URLs are rendered as
- * anchor hrefs in the frontend, and `javascript:` / `data:` hrefs are stored XSS.
- * Rejecting them at the write boundary means the frontend cannot be the only thing
- * standing between a stored value and script execution.
- */
+/** These render as anchor hrefs, so javascript:/data: URLs would be stored XSS. */
 const URL_RULES: IsURLOptions = {
   protocols: ['http', 'https'],
   require_protocol: true,
-  require_tld: false, // allow http://localhost:3000/... which is legitimate to bookmark
+  require_tld: false, // http://localhost:3000/... is legitimate to bookmark
 };
+
+const OptionalNullable = () => ValidateIf((_o, v) => v !== null);
 
 export class CreateBookmarkDto {
   @IsUrl(URL_RULES, { message: 'url must be an http(s) URL' })
@@ -34,23 +31,20 @@ export class CreateBookmarkDto {
   title!: string;
 
   @IsOptional()
-  @ValidateIf((_o, v) => v !== null)
+  @OptionalNullable()
   @IsString()
   @MaxLength(5000)
   notes?: string | null;
 
-  /**
-   * Nullable on purpose — an uncategorised bookmark is legal. Whether the caller may
-   * actually use this collection id is NOT a validation concern; it is an authorisation
-   * one, checked against the caller's own collections in BookmarksService.
-   */
+  /** Whether the caller may use this collection is authorisation, checked in the service. */
   @IsOptional()
-  @ValidateIf((_o, v) => v !== null)
+  @OptionalNullable()
   @IsString()
   @IsNotEmpty()
   collectionId?: string | null;
 }
 
+/** PUT requires the full body; PATCH does not. Separate classes on purpose. */
 export class ReplaceBookmarkDto extends CreateBookmarkDto {}
 
 export class PatchBookmarkDto {
@@ -66,26 +60,24 @@ export class PatchBookmarkDto {
   title?: string;
 
   @IsOptional()
-  @ValidateIf((_o, v) => v !== null)
+  @OptionalNullable()
   @IsString()
   @MaxLength(5000)
   notes?: string | null;
 
   @IsOptional()
-  @ValidateIf((_o, v) => v !== null)
+  @OptionalNullable()
   @IsString()
   @IsNotEmpty()
   collectionId?: string | null;
 }
 
 export class ListBookmarksQueryDto extends ListQueryDto {
-  /** Filter to one collection. Must be a collection the caller owns, else 404. */
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   collectionId?: string;
 
-  /** `?uncategorised=true` returns only bookmarks with no collection. */
   @IsOptional()
   @Transform(({ value }) => value === true || value === 'true' || value === '1')
   @IsBoolean()
