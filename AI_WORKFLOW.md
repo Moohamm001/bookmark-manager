@@ -13,7 +13,7 @@ How this was actually built.
 | **Repo config** | `CLAUDE.md` written **before** any application code; `.agent/` capability added at Phase 1 |
 | **Human role** | Decisions, phase boundaries, adversarial review, and the two things I would not delegate: the token choice and the §3.3 boundary |
 
-Everything the agent claimed, it ran. The `109 passed` figures, the `FAIL — 2 violation(s)`
+Everything the agent claimed, it ran. The `110 passed` figures, the `FAIL — 2 violation(s)`
 output, the Auth0 `Service not found` response — all copied from actual terminal output, not
 narrated.
 
@@ -50,7 +50,7 @@ way the claim could be false" rather than "write tests for auth", the output inc
 would have got to eventually but not first: `alg: none`, unknown `kid`, an ID-token-shaped
 token distinguished only by `aud`, and — the best one — *"does not tell the caller WHY a token
 was rejected"*, which asserts that expired, wrong-audience and forged tokens produce byte-identical
-bodies. 109 tests in about 9 seconds.
+bodies. 110 tests in about 9 seconds.
 
 **2. Mechanical breadth without fatigue.** The `PROTECTED_ROUTES` table drives 30 assertions
 across every verb and route. A human writes six of those and starts trusting the pattern. This
@@ -138,7 +138,8 @@ then bounced them back to Auth0. An infinite, silent loop.
 The agent's own comment above that line asserted the opposite — *"The SDK consumes the ?code=
 and then onRedirectCallback navigates onward"* — which is a good illustration of what
 plausible-but-wrong looks like. It reads like someone who understood the flow. Nothing in
-typecheck, lint, the 109 tests or the privacy gate could see it, because none of them
+typecheck, lint, the 109 tests that existed at that point, or the privacy gate could
+see it, because none of them
 execute a browser redirect.
 
 **Recovery:** `/callback` now renders a `CallbackPage` that deliberately does nothing to the
