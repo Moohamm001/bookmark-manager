@@ -1,4 +1,4 @@
-# Phase 0, step 3 — a real token, in hand
+# Phase 0, steps 3–4 — real tokens, inspected by hand
 
 Steps 1–2 (discovery document, JWKS) and the credential-free `/authorize` probes are in
 [`FINDINGS.md`](FINDINGS.md). This is the step that needed a password, so it was run by hand
@@ -81,17 +81,49 @@ real token showed it.
 
 ## Without the audience parameter
 
-Not run by hand. The claim — that Auth0 returns an **opaque** token when no registered API
-audience is requested — is already established credential-free in
-[`FINDINGS.md`](FINDINGS.md) §3, where the same `/authorize` request with an unregistered
-audience is refused with `access_denied — Service not found: …`. That proves the tenant
-resolves `audience` against registered Resource Servers, which is what makes the difference
-between a JWT and an opaque token.
+```
+$ node scripts/verify-token.mjs --no-audience
 
-To see it directly:
+=== PKCE (S256) WITHOUT audience ===
+code_verifier  : o8dxorwRhqgjmGC2mrBkXhdp_fUORyXbwmN9BTTJKwk
+code_challenge : OBVd0VkzzdsRaEysCKsUAvWGiZtSl4xv-fGryCIrV1Y   (S256 of the verifier)
 
-```bash
-node scripts/verify-token.mjs --no-audience
+Listening on http://localhost:3000/callback ...
+Got authorization code: vjvCCh1XYvnz...
+
+--- access_token (444 chars) ---
+NOT a JWT -> OPAQUE token.
+value: eyJhbGciOiJkaXIiLCJlbmMi...
+
+--- id_token ---
+header : {"alg":"RS256","typ":"JWT","kid":"tOu0FHcN3C2etrel4Qhaz"}
+aud    : "H9F6QG5SzTKMv0tbmgxLj9LjG1EKVllA"   <-- the CLIENT ID, not our API
+sub    : google-oauth2|1173............417   email: [redacted]
 ```
 
-The script prints the token length and reports that it is not a JWT.
+Same login, same client, same signing key. The **only** difference from the run above is one
+query parameter — and the access token changes from a 778-character verifiable JWT into a
+444-character blob this API cannot check at all. Without `audience`, validating a caller
+would mean an HTTP round-trip to `/userinfo` on every single request.
+
+### The part that would fool a naive check
+
+The opaque token **starts with `eyJ`**, exactly like a JWT. It is not one:
+
+```
+eyJhbGciOiJkaXIiLCJlbmMi...   ->   {"alg":"dir","enc...
+```
+
+`alg: dir` is JWE — a token *encrypted* to the tenant, five parts rather than three. Auth0
+holds the key; we do not. So a guard that decided "is this a JWT?" with
+`token.startsWith('eyJ')` would sail straight past this, then fail confusingly somewhere
+further down. Our verifier never guesses: `jose` parses and verifies, and anything that is
+not a valid RS256 JWT with the right `iss`/`aud`/`exp` is a 401.
+
+### And the id_token is unaffected
+
+Dropping `audience` changes the access token completely and leaves the id_token exactly as it
+was — still RS256, still signed by `kid=tOu0FHcN3C2etrel4Qhaz`, still carrying the **client
+id** as its `aud`. That is the cleanest statement of ADR-001 available: the id_token is a
+statement about the user to the frontend, and it does not become an API credential no matter
+what you ask for at login.

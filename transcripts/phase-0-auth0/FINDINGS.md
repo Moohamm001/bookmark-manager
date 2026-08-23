@@ -81,16 +81,22 @@ page rather than redirecting. Callback allow-listing is enforced tenant-side.
 So the guard validates: RS256 signature via JWKS (`kid`-selected), `iss === "https://dev-yg.us.auth0.com/"`,
 `aud` includes `https://bbl-candidate-test-api`, and `exp`. Identity is the verified `sub`, never a body field.
 
-## 5. Confirmed with a real token
+## 5. Confirmed with real tokens
 
 Steps 1–4 above need no credentials, which is why they are recorded here. The remaining
-proof — logging in for real and decoding the resulting tokens — needs the account password,
-so it was run by hand with `scripts/verify-token.mjs`.
+proof — logging in for real and decoding what comes back — needs the account password, so it
+was run by hand with `scripts/verify-token.mjs`, both with and without the audience parameter.
 
-Result in [`token-inspection.md`](token-inspection.md). It confirms the access token is an
-RS256 JWT signed by `kid=tOu0FHcN3C2etrel4Qhaz`, one of the two keys captured in
-[`jwks.json`](jwks.json) before any code was written — and that the id_token from the same
-login carries the client id as its `aud`.
+Full output in [`token-inspection.md`](token-inspection.md). It confirms:
 
-It also turned up something the credential-free probes could not: **`aud` is an array**, so
-the rule is "must include our API", not equality. See that file.
+- **With** `audience`: a 778-char RS256 JWT signed by `kid=tOu0FHcN3C2etrel4Qhaz` — one of
+  the two keys captured in [`jwks.json`](jwks.json) before a line of code was written.
+- **Without** `audience`: a 444-char **opaque** token this API cannot validate at all. Same
+  login, one query parameter apart.
+- The id_token is identical in both runs and always carries the **client id** as its `aud`.
+
+Two things the credential-free probes could not have shown:
+
+1. **`aud` is an array**, so the rule is "must include our API", not equality.
+2. The opaque token **begins with `eyJ` like a JWT** but is a JWE (`alg: dir`) — five parts,
+   encrypted to the tenant. Sniffing the prefix to decide "is this a JWT" would be wrong.
