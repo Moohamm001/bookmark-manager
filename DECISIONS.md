@@ -4,9 +4,12 @@ ADR-style, short. The calls where the spec was silent — what I chose, what I g
 (because this is a take-home about steering agents) how I got the agent to build *my* choice
 instead of its default.
 
-> **A note on authorship.** The code here was largely agent-written; these decisions were
-> not. Where an agent's default differed from my call, I have said so explicitly, because
-> "the agent picked it" is not a defensible answer at an on-site.
+> **A note on authorship.** Both the code and the reasoning below were largely agent-written.
+> Where a decision was mine, it was a choice between options the agent laid out with a
+> recommendation — ADR-002, ADR-003 and ADR-004 are the three I actually decided, and I took
+> the recommendation each time. The "steering" notes describe how the agent was constrained by
+> `CLAUDE.md`, not a case of me overriding it. `AI_WORKFLOW.md` sets out the division of
+> labour plainly; I would rather state it than have it inferred.
 
 ---
 

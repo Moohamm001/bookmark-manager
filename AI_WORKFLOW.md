@@ -11,11 +11,39 @@ How this was actually built.
 | **Agent** | Claude Code (CLI), model Claude Opus 5 |
 | **Mode** | Single long agentic session, tool-using, running commands and reading their output rather than being told what happened |
 | **Repo config** | `CLAUDE.md` written **before** any application code; `.agent/` capability added at Phase 1 |
-| **Human role** | Decisions, phase boundaries, adversarial review, and the two things I would not delegate: the token choice and the §3.3 boundary |
+| **Human role** | Set the goal, chose between options the agent put in front of me, ran the app, and reported what broke |
 
 Everything the agent claimed, it ran. The `110 passed` figures, the `FAIL — 2 violation(s)`
 output, the Auth0 `Service not found` response — all copied from actual terminal output, not
 narrated.
+
+## Division of labour — stated plainly
+
+I would rather be marked down for this than have it discovered at the on-site.
+
+**The agent drove.** It proposed the phase order, wrote `CLAUDE.md`, chose the technical
+approach at nearly every step, wrote all the code and all the tests, and did the verification
+work below. The engineering judgement in this repo is largely its judgement, not mine.
+
+**What I actually decided.** Two forks, and both were presented to me as options with a
+recommendation attached, which I took:
+
+- collection delete → set `collectionId` null rather than cascade (ADR-003)
+- §3.3 sharing → document the design, do not build it (ADR-004)
+- token storage → keep memory-only after the reload cost became visible in practice (ADR-002)
+
+**What I actually contributed that mattered.** I ran the app. That sounds small next to 110
+tests, and it was the single most valuable thing anyone did on this project: **the only
+user-facing bug in the build was found by me clicking a button, not by any automated check.**
+The agent's typecheck, lint, privacy gate and entire test suite were green while sign-in was
+completely broken, because none of them execute a browser redirect. See failure 4.
+
+**Where I did not push back.** When the agent told me `tsx` was silently breaking dependency
+injection, I accepted it without independently verifying — it had shown me the stack trace and
+the explanation was coherent. There was no point in this build where I thought the agent was
+wrong and checked for myself. I am recording that because a workflow log that claims
+scepticism I did not exercise is worth less than an honest one, and because it is the clearest
+thing I would change next time.
 
 ---
 
@@ -91,10 +119,11 @@ My own tool, agent-written, and its first run produced four confident failures o
 queries — it only understood inline object literals, and the services build
 `const where = { ownerId, ... }` and pass `{ where }` by shorthand.
 
-**Recovery:** added local-binding resolution. **Why I did not just suppress them:** a security
-gate that cries wolf gets switched off, or trains people that `// privacy-ok` is routine. The
-gate's precision *is* its function. This was the moment I stopped treating agent-written
-tooling as automatically trustworthy just because I had specified it carefully.
+**Recovery:** added local-binding resolution rather than suppressing the findings. The reason
+given at the time, which I agree with: a security gate that cries wolf gets switched off, or
+trains people that `// privacy-ok` is routine. The gate's precision *is* its function.
+
+Worth noting honestly — the agent both wrote this tool and found its flaw. I did not catch it.
 
 **3. I nearly rewrote good tests because a mutation "wasn't caught".**
 
@@ -122,6 +151,13 @@ thing past it was broken.
 
 I signed in, pressed **Accept**, and landed back at the login screen. No error, no console
 noise — sign-in simply did nothing.
+
+**My guess was wrong.** I assumed the API call was malformed — a bad request, or a missing
+header. It was neither; nothing had reached the API at all, because the authorization code
+never got exchanged. What actually resolved it was reporting the symptom precisely ("press
+Accept, nothing happens") rather than my diagnosis of it. That is worth recording: on the one
+bug that mattered, my value was as the person who *ran the thing*, not the person who worked
+out why.
 
 The cause was four characters of routing:
 
@@ -223,23 +259,39 @@ The two middle steps are the ones that earned their place:
 
 ## Cost and token awareness
 
-Roughly a **60/40 split between building and verifying**, and I would defend spending more on
-the second half — §6 of the brief puts 10 points on the app running and 90 on everything else.
+The brief puts 10 of 100 points on the app running and 90 on everything else, so the work
+skewed heavily toward verification — very roughly 60/40 building to verifying.
 
-Where the budget actually went, and the cheap wins:
+These were the agent's calls, and I am recording them because they are the ones that visibly
+changed the cost of later phases, not because I made them:
 
-- **Cheapest high-value spend: `CLAUDE.md`, written first.** A few hundred tokens that removed
-  entire categories of correction from every later phase. Re-explaining the invariant per
-  session would have cost far more.
-- **Phase 0 before any code.** Four curl commands. They produced the token decision, the
-  trailing-slash issue, the two-keys-so-select-by-`kid` finding, and the port-3000 constraint —
-  all of which would have been expensive to discover by debugging a 401 loop later.
-- **The static gate over re-reading diffs.** It runs in under a second, in CI and in a
-  `PostToolUse` hook. Catching an unscoped query costs ~0 tokens; catching it by asking an
-  agent to re-read the diff costs the whole file, every time.
-- **Deliberate non-spend:** no frontend unit tests, no browser E2E, no load testing. All
-  listed in `API_DESIGN.md` §9 with reasons. Time went to the layer that actually enforces
-  something.
-- **Biggest avoidable waste:** debugging the `tsx` DI failure. A single "boot the server and
-  curl one route" step at the end of Phase 2 would have caught it one phase earlier, before
-  the guard was built on top of it.
+- **`CLAUDE.md` written before any application code.** A few hundred tokens that removed whole
+  categories of correction later — 404-not-403, owner-scoping and no-`any` appear in the
+  *first* draft of every service, not the second.
+- **Phase 0 before any code.** Four `curl` commands produced the token decision, the
+  trailing-slash issuer, the two-keys-so-select-by-`kid` finding and the port-3000 constraint.
+  All of those are expensive to discover later by debugging a 401 loop.
+- **A static gate instead of re-reading diffs.** It runs in under a second in CI and in a
+  `PostToolUse` hook. Catching an unscoped query costs nothing; catching it by asking a model
+  to re-read a diff costs the whole file, every time.
+- **Deliberate non-spend:** no frontend unit tests, no browser E2E, no load testing — all
+  listed with reasons in `API_DESIGN.md` §9.
+
+**The one that actually cost real time** was the `tsx` dependency-injection failure, and the
+fix was procedural rather than clever: boot the server and hit one route at the end of each
+backend phase. It went into the loop afterwards. In hindsight the same lesson covers failure 4
+— the app was never *used* until late, and that is where the only real bug was hiding.
+
+---
+
+## What I would do differently
+
+One thing, and it follows directly from the two failures above: **use the app earlier and more
+often.** Every automated check the agent built was green while sign-in was broken. Typecheck,
+lint, a 109-test suite and a custom static analyser could not see it, because none of them open
+a browser.
+
+I would also want to be able to say I had pushed back on the agent somewhere and been right.
+I cannot say that about this build — see "Division of labour" above. Knowing *where* an agent
+is most likely to be confidently wrong is the skill I am shortest on, and the honest read of
+this project is that the tooling caught the agent's mistakes far more often than I did.
